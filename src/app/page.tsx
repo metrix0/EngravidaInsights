@@ -6,31 +6,37 @@ import {
     BarChart3,
     Calendar,
     Clock,
-    FileText,
     HelpCircle,
-    LayoutDashboard,
     MapPin,
     MessageCircle,
-    RefreshCcw,
     ShieldCheck,
     Smile,
     User,
-    Users,
 } from "lucide-react";
 import {
     Area,
     AreaChart,
     CartesianGrid,
     Cell,
+    Line,
     Pie,
     PieChart,
     ResponsiveContainer,
     Tooltip,
     XAxis,
     YAxis,
-    Line,
 } from "recharts";
+
 import type { ExecutiveDashboardData } from "@/types";
+
+import {
+    Card,
+    FilterButton,
+    KpiCard,
+    PercentageBar,
+    PercentageValue,
+    SidePanel,
+} from "@/components";
 
 export default function ExecutiveDashboardPage() {
     const [data, setData] = useState<ExecutiveDashboardData | null>(null);
@@ -50,7 +56,7 @@ export default function ExecutiveDashboardPage() {
 
     if (loading) {
         return (
-            <main className="min-h-screen bg-[#f7f9fc] p-8 text-slate-900">
+            <main className="min-h-screen bg-white p-8 text-slate-900">
                 Carregando dashboard...
             </main>
         );
@@ -58,7 +64,7 @@ export default function ExecutiveDashboardPage() {
 
     if (!data) {
         return (
-            <main className="min-h-screen bg-[#f7f9fc] p-8 text-slate-900">
+            <main className="min-h-screen bg-white p-8 text-slate-900">
                 Nenhum dado encontrado.
             </main>
         );
@@ -70,188 +76,136 @@ export default function ExecutiveDashboardPage() {
             : Math.round(data.kpis.average_first_human_response_seconds / 60);
 
     return (
-        <main className="w-screen h-screen bg-white mx-auto flex overflow-y-scroll text-slate-900">
-                <Sidebar />
+        <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
+            <SidePanel />
+            <section className="flex-1 px-8 py-8">
+                <Header />
 
-                <section className="flex-1 px-8 py-8">
-                    <Header />
+                <div className="mb-8 flex justify-end gap-3">
+                    <FilterButton icon={<MapPin size={16} />} label="Todas as unidades" />
+                    <FilterButton icon={<User size={16} />} label="Todos os atendentes" />
+                    <FilterButton icon={<BarChart3 size={16} />} label="Todos os serviços" />
+                </div>
 
-                    <div className="mb-8 flex justify-end gap-3">
-                        <FilterButton icon={<MapPin size={16} />} label="Todas as unidades" />
-                        <FilterButton icon={<User size={16} />} label="Todos os atendentes" />
-                        <FilterButton icon={<BarChart3 size={16} />} label="Todos os serviços" />
-                    </div>
+                <section className="mb-6 grid grid-cols-5 gap-5">
+                    <KpiCard
+                        icon={<MessageCircle size={26} />}
+                        label="Conversas analisadas"
+                        value={data.kpis.conversations_analyzed.toLocaleString("pt-BR")}
+                        trend="↑ 15,2% vs. 7 dias anteriores"
+                        color="purple"
+                    />
 
-                    <section className="mb-6 grid grid-cols-5 gap-5">
-                        <KpiCard
-                            icon={<MessageCircle size={26} />}
-                            label="Conversas analisadas"
-                            value={data.kpis.conversations_analyzed.toLocaleString("pt-BR")}
-                            trend="↑ 15,2% vs. 7 dias anteriores"
-                        />
+                    <KpiCard
+                        icon={<ShieldCheck size={26} />}
+                        label="Resolução real"
+                        value={`${data.kpis.real_resolution_rate}%`}
+                        trend="↑ 6,4% vs. 7 dias anteriores"
+                        color="green"
+                    />
 
-                        <KpiCard
-                            icon={<ShieldCheck size={26} />}
-                            label="Resolução real"
-                            value={`${data.kpis.real_resolution_rate}%`}
-                            trend="↑ 6,4% vs. 7 dias anteriores"
-                        />
+                    <KpiCard
+                        icon={<Smile size={26} />}
+                        label="Clientes claramente satisfeitos"
+                        value={`${data.kpis.clear_satisfaction_rate}%`}
+                        trend="↑ 4,1% vs. 7 dias anteriores"
+                        color="blue"
+                    />
 
-                        <KpiCard
-                            icon={<Smile size={26} />}
-                            label="Clientes claramente satisfeitos"
-                            value={`${data.kpis.clear_satisfaction_rate}%`}
-                            trend="↑ 4,1% vs. 7 dias anteriores"
-                        />
+                    <KpiCard
+                        icon={<Calendar size={26} />}
+                        label="Taxa de agendamento"
+                        value={`${data.kpis.scheduling_rate}%`}
+                        trend="↑ 8,7% vs. 7 dias anteriores"
+                        color="purple"
+                    />
 
-                        <KpiCard
-                            icon={<Calendar size={26} />}
-                            label="Taxa de agendamento"
-                            value={`${data.kpis.scheduling_rate}%`}
-                            trend="↑ 8,7% vs. 7 dias anteriores"
-                        />
-
-                        <KpiCard
-                            icon={<Clock size={26} />}
-                            label="1ª resposta humana média"
-                            value={averageResponseMinutes === null ? "-" : `${averageResponseMinutes} min`}
-                            trend="↓ -6% vs. 7 dias anteriores"
-                        />
-                    </section>
-
-                    <section className="mb-6 grid grid-cols-[1.45fr_0.95fr] gap-5">
-                        <Card>
-                            <div className="mb-5 flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-lg font-bold">Evolução diária</h2>
-
-                                    <div className="mt-3 flex items-center gap-6 text-xs text-slate-500">
-                                        <LegendDot color="bg-blue-500" label="Conversas" />
-                                        <LegendDot color="bg-violet-500" label="Resolução (%)" />
-                                        <LegendDot color="bg-emerald-500" label="Satisfação (%)" />
-                                    </div>
-                                </div>
-
-                                <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-                                    Últimos 7 dias
-                                </button>
-                            </div>
-
-                            <div className="h-[290px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={data.daily_evolution}>
-                                        <defs>
-                                            <linearGradient id="conversationFill" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.22} />
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-
-                                        <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
-                                        <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                                        <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                                        <Tooltip />
-
-                                        <Area
-                                            type="monotone"
-                                            dataKey="conversations"
-                                            stroke="#1683ff"
-                                            strokeWidth={3}
-                                            fill="url(#conversationFill)"
-                                        />
-
-                                        <Line
-                                            type="monotone"
-                                            dataKey="resolution_rate"
-                                            stroke="#8b5cf6"
-                                            strokeWidth={3}
-                                            dot={{ r: 4 }}
-                                        />
-
-                                        <Line
-                                            type="monotone"
-                                            dataKey="satisfaction_rate"
-                                            stroke="#10b981"
-                                            strokeWidth={3}
-                                            dot={{ r: 4 }}
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-
-                        <ScoreCard data={data} />
-                    </section>
-
-                    <section className="grid grid-cols-3 gap-5">
-                        <DropoffCard data={data} />
-                        <ConversationGoalsCard data={data} />
-                        <UnitViewCard data={data} />
-                    </section>
+                    <KpiCard
+                        icon={<Clock size={26} />}
+                        label="1ª resposta humana média"
+                        value={averageResponseMinutes === null ? "-" : `${averageResponseMinutes} min`}
+                        trend="↓ -6% vs. 7 dias anteriores"
+                        color="orange"
+                    />
                 </section>
-        </main>
-    );
-}
 
-function Sidebar() {
-    const items = [
-        { label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-        { label: "Conversas", icon: <MessageCircle size={18} /> },
-        { label: "Jornada", icon: <ShieldCheck size={18} /> },
-        { label: "Atendentes", icon: <Users size={18} /> },
-        { label: "Relatórios", icon: <FileText size={18} /> },
-        { label: "Configurações", icon: <BarChart3 size={18} /> },
-    ];
+                <section className="mb-6 grid grid-cols-[1.45fr_0.95fr] gap-5">
+                    <Card>
+                        <div className="mb-5 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-bold">Evolução diária</h2>
 
-    return (
-        <aside className="flex w-[270px] flex-col border-r border-slate-200 bg-white px-6 py-7">
-            <div className="mb-10 flex items-center gap-2">
-                <img src={"./logo.png"}/>
-                <div className="h-6 w-6 rounded-full bg-red-500" />
-                <div className="text-2xl font-semibold tracking-tight">
-                    <span className="text-red-600">engravida</span>{" "}
-                    <span className="text-base font-normal text-amber-700">Insights</span>
-                </div>
-            </div>
+                                <div className="mt-3 flex items-center gap-6 text-xs text-slate-500">
+                                    <LegendDot color="bg-blue-500" label="Conversas" />
+                                    <LegendDot color="bg-violet-500" label="Resolução (%)" />
+                                    <LegendDot color="bg-emerald-500" label="Satisfação (%)" />
+                                </div>
+                            </div>
 
-            <nav className="space-y-2">
-                {items.map((item) => {
-                    const active = item.label === "Dashboard";
-
-                    return (
-                        <div
-                            key={item.label}
-                            className={`flex items-center gap-4 rounded-xl px-4 py-3 text-sm ${
-                                active
-                                    ? "bg-red-50 font-semibold text-red-500"
-                                    : "text-slate-500 hover:bg-slate-50"
-                            }`}
-                        >
-                            {item.icon}
-                            {item.label}
+                            <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
+                                Últimos 7 dias
+                            </button>
                         </div>
-                    );
-                })}
-            </nav>
 
-            <div className="mt-auto space-y-4">
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-                    <div>
-                        <div>Atualizado em</div>
-                        <div>Há 8 minutos</div>
-                    </div>
-                    <RefreshCcw size={18} />
-                </div>
+                        <div className="h-[290px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={data.daily_evolution}>
+                                    <defs>
+                                        <linearGradient
+                                            id="conversationFill"
+                                            x1="0"
+                                            y1="0"
+                                            x2="0"
+                                            y2="1"
+                                        >
+                                            <stop offset="5%" stopColor="#1683ff" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#1683ff" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
 
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
-                    <HelpCircle className="text-red-500" size={24} />
-                    <div>
-                        <div>Precisa de ajuda?</div>
-                        <div>Central de ajuda</div>
-                    </div>
-                </div>
-            </div>
-        </aside>
+                                    <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+                                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                                    <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                                    <Tooltip />
+
+                                    <Area
+                                        type="monotone"
+                                        dataKey="conversations"
+                                        stroke="#1683ff"
+                                        strokeWidth={3}
+                                        fill="url(#conversationFill)"
+                                    />
+
+                                    <Line
+                                        type="monotone"
+                                        dataKey="resolution_rate"
+                                        stroke="#8b5cf6"
+                                        strokeWidth={3}
+                                        dot={{ r: 4 }}
+                                    />
+
+                                    <Line
+                                        type="monotone"
+                                        dataKey="satisfaction_rate"
+                                        stroke="#10b981"
+                                        strokeWidth={3}
+                                        dot={{ r: 4 }}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    <ScoreCard data={data} />
+                </section>
+
+                <section className="grid grid-cols-3 gap-5">
+                    <DropoffCard data={data} />
+                    <ConversationGoalsCard data={data} />
+                    <UnitViewCard data={data} />
+                </section>
+            </section>
+        </main>
     );
 }
 
@@ -282,34 +236,6 @@ function Header() {
                 </button>
             </div>
         </header>
-    );
-}
-
-function KpiCard({
-                     icon,
-                     label,
-                     value,
-                     trend,
-                 }: {
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    trend: string;
-}) {
-    return (
-        <Card>
-            <div className="flex items-center gap-5">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-violet-600">
-                    {icon}
-                </div>
-
-                <div>
-                    <div className="text-xs font-medium text-slate-500">{label}</div>
-                    <div className="mt-1 text-3xl font-bold tracking-tight">{value}</div>
-                    <div className="mt-2 text-xs font-medium text-emerald-600">{trend}</div>
-                </div>
-            </div>
-        </Card>
     );
 }
 
@@ -385,7 +311,9 @@ function DropoffCard({ data }: { data: ExecutiveDashboardData }) {
                     <h2 className="text-lg font-bold">Momentos de perda mais comuns</h2>
                     <HelpCircle size={16} className="text-slate-400" />
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Base: conversas não resolvidas</p>
+                <p className="mt-1 text-xs text-slate-500">
+                    Base: conversas não resolvidas
+                </p>
             </div>
 
             <div className="space-y-5">
@@ -398,14 +326,14 @@ function DropoffCard({ data }: { data: ExecutiveDashboardData }) {
                 </span>
                                 <span className="font-medium text-slate-700">{item.label}</span>
                             </div>
-                            <span className="font-bold text-slate-700">{item.percentage}%</span>
+
+                            <span className="font-bold text-slate-700">
+                {item.percentage}%
+              </span>
                         </div>
 
-                        <div className="ml-9 h-2 rounded-full bg-violet-100">
-                            <div
-                                className="h-2 rounded-full bg-violet-500"
-                                style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                            />
+                        <div className="ml-9">
+                            <PercentageBar value={item.percentage} color="purple" />
                         </div>
                     </div>
                 ))}
@@ -461,7 +389,10 @@ function ConversationGoalsCard({ data }: { data: ExecutiveDashboardData }) {
                 />
                                 <span className="text-slate-600">{item.label}</span>
                             </div>
-                            <span className="font-medium text-slate-600">{item.percentage}%</span>
+
+                            <span className="font-medium text-slate-600">
+                {item.percentage}%
+              </span>
                         </div>
                     ))}
                 </div>
@@ -489,45 +420,28 @@ function UnitViewCard({ data }: { data: ExecutiveDashboardData }) {
                         className="grid grid-cols-4 border-t border-slate-100 px-4 py-3 text-sm"
                     >
                         <div className="font-medium text-slate-600">{unit.unit_name}</div>
-                        <div className="font-bold text-emerald-600">{unit.resolution_rate}%</div>
-                        <div className="font-bold text-emerald-600">{unit.satisfaction_rate}%</div>
-                        <div
-                            className={
-                                unit.scheduling_rate < 40
-                                    ? "font-bold text-orange-500"
-                                    : "font-bold text-emerald-600"
-                            }
-                        >
-                            {unit.scheduling_rate}%
-                        </div>
+
+                        <PercentageValue
+                            value={unit.resolution_rate}
+                            greenFrom={70}
+                            orangeFrom={40}
+                        />
+
+                        <PercentageValue
+                            value={unit.satisfaction_rate}
+                            greenFrom={70}
+                            orangeFrom={40}
+                        />
+
+                        <PercentageValue
+                            value={unit.scheduling_rate}
+                            greenFrom={45}
+                            orangeFrom={35}
+                        />
                     </div>
                 ))}
             </div>
         </Card>
-    );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            {children}
-        </div>
-    );
-}
-
-function FilterButton({
-                          icon,
-                          label,
-                      }: {
-    icon: React.ReactNode;
-    label: string;
-}) {
-    return (
-        <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
-            {icon}
-            {label}
-            <span className="text-slate-400">⌄</span>
-        </button>
     );
 }
 
