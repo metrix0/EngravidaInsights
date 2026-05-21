@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "prepare": "husky",
-    "headers": "node scripts/update-file-headers.js"
+    "headers": "node scripts/update-file-headers.js",
+    "ui": "node scripts/generate-ui-registry.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
@@ -18,6 +19,7 @@
     "openai": "^6.38.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
