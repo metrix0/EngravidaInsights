@@ -99,8 +99,8 @@ export type ConversationAnalysis = {
     ended_at: string;
 
     attendant_id: string | null;
-    unit_interest: string | null;
-    service_interest: string | null;
+    unit_id: string | null;
+    service_id: string | null;
 
     customer_start_intent: string;
 

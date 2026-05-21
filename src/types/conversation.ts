@@ -14,7 +14,12 @@ export type Conversation = {
     started_at: string;
     ended_at: string | null;
 
-    primary_attendant_name: string | null;
+    attendant_id: string | null;
+    attendant_chat_name: string | null;
+
+    unit_id: string | null;
+
+    service_id: string | null;
 
     created_at: string;
     updated_at: string;
