@@ -1,0 +1,137 @@
+// src/lib/ads/deriveAdEventsFromAnalysis.ts
+import type { ConversationAnalysis, OutcomeEventType } from "@/types";
+
+export type DerivedAdEvent = {
+    type: "lead" | "schedule";
+    meta_event_name: "Lead" | "Schedule";
+    google_conversion_name: "qualified_lead" | "book_appointment";
+    occurred_at: string;
+    confidence: number;
+};
+
+export function deriveAdEventsFromAnalysis(
+    analysis: ConversationAnalysis
+): DerivedAdEvent[] {
+    if (isBadLead(analysis)) {
+        return [];
+    }
+
+    const events: DerivedAdEvent[] = [];
+
+    if (isQualifiedLead(analysis)) {
+        events.push({
+            type: "lead",
+            meta_event_name: "Lead",
+            google_conversion_name: "qualified_lead",
+            occurred_at:
+                getEventTime(analysis, [
+                    "consultation_offered",
+                    "information_answered",
+                    "price_presented",
+                    "handoff_to_unit",
+                ]) ?? analysis.started_at,
+            confidence: getLeadConfidence(analysis),
+        });
+    }
+
+    if (isScheduled(analysis)) {
+        events.push({
+            type: "schedule",
+            meta_event_name: "Schedule",
+            google_conversion_name: "book_appointment",
+            occurred_at:
+                getEventTime(analysis, [
+                    "appointment_scheduled",
+                    "appointment_rescheduled",
+                ]) ?? analysis.ended_at,
+            confidence:
+                getEventConfidence(analysis, [
+                    "appointment_scheduled",
+                    "appointment_rescheduled",
+                ]) ?? 0.95,
+        });
+    }
+
+    return events;
+}
+
+function isBadLead(analysis: ConversationAnalysis): boolean {
+    return (
+        analysis.customer_final_state === "not_qualified" ||
+        analysis.resolution.reasoning_category === "customer_not_qualified"
+    );
+}
+
+function isQualifiedLead(analysis: ConversationAnalysis): boolean {
+    if (analysis.resolution.reasoning_category === "customer_abandoned") {
+        return false;
+    }
+
+    if (analysis.dropoff.happened && analysis.dropoff.moment === "after_price") {
+        return false;
+    }
+
+    return (
+        analysis.goal_status === "achieved" ||
+        analysis.goal_status === "partially_achieved" ||
+        analysis.resolution.resolution_score >= 60 ||
+        hasAnyEvent(analysis, [
+            "consultation_offered",
+            "price_presented",
+            "handoff_to_unit",
+            "information_answered",
+        ])
+    );
+}
+
+function isScheduled(analysis: ConversationAnalysis): boolean {
+    return (
+        analysis.customer_final_state === "scheduled" ||
+        analysis.customer_final_state === "rescheduled" ||
+        analysis.resolution.reasoning_category === "customer_scheduled" ||
+        hasAnyEvent(analysis, [
+            "appointment_scheduled",
+            "appointment_rescheduled",
+        ])
+    );
+}
+
+function hasAnyEvent(
+    analysis: ConversationAnalysis,
+    eventTypes: OutcomeEventType[]
+): boolean {
+    return analysis.outcome_events.some((event) =>
+        eventTypes.includes(event.type)
+    );
+}
+
+function getEventTime(
+    analysis: ConversationAnalysis,
+    eventTypes: OutcomeEventType[]
+): string | null {
+    return (
+        analysis.outcome_events.find((event) =>
+            eventTypes.includes(event.type)
+        )?.occurred_at ?? null
+    );
+}
+
+function getEventConfidence(
+    analysis: ConversationAnalysis,
+    eventTypes: OutcomeEventType[]
+): number | null {
+    return (
+        analysis.outcome_events.find((event) =>
+            eventTypes.includes(event.type)
+        )?.confidence ?? null
+    );
+}
+
+function getLeadConfidence(analysis: ConversationAnalysis): number {
+    if (analysis.goal_status === "achieved") return 0.9;
+    if (analysis.goal_status === "partially_achieved") return 0.8;
+    if (analysis.resolution.resolution_score >= 75) return 0.85;
+    if (analysis.resolution.resolution_score >= 60) return 0.75;
+
+    return 0.65;
+}

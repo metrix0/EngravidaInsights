@@ -16,7 +16,8 @@ Dashboard with AI to analyze conversations between attendants and clients, gener
 
 ## ✅ Architecture
 
-[ Data From Blip ] --> [ Supabase Database ] --> [ Next.js API Routes ] --> [ Dashboard Frontend ]
+[ New Message on Blip (Trigger) ] --> [ Supabase Database ]
+[ Cron(30min)+API Separate Conversations that Ended ] --> [ API Route AI Analysis ] --> [ Dashboard Frontend ]
 
 Core entities are defined in `src/types`:
 

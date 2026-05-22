@@ -9,17 +9,22 @@
     "lint": "eslint",
     "prepare": "husky",
     "headers": "node scripts/update-file-headers.js",
-    "ui": "node scripts/generate-ui-registry.mjs"
+    "ui": "node scripts/generate-ui-registry.mjs",
+    "analyze": "node scripts/test-analyze.mjs",
+    "analysis:save": "node --env-file=.env.local --import tsx scripts/test-save-analysis.ts",
+    "analysis:ads": "node --env-file=.env.local --import tsx scripts/test-derive-ad-events.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
     "date-fns": "^4.2.1",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
-    "openai": "^6.38.0",
+    "openai": "^6.39.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "tsx": "^4.22.3",
+    "ws": "^8.20.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

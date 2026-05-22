@@ -8,6 +8,7 @@ export * from "./service";
 export * from "./unit";
 export * from "./executive-dashboard-data";
 export * from "./filters";
+export * from "./analyze-conversation-input";
 
 export type ClientWithConversations = import("./client").Client & {
     conversations: Array<
