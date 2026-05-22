@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📊 Engravida Insights
 
-## Getting Started
+Dashboard com IA para analisar conversas entre atendentes e clientes, gerando métricas de resolução, satisfação, agendamento, momentos de perda e análise por unidade/serviço/atendente. Obtenção de mensagens para análises integrada à Blip.
 
-First, run the development server:
+Dashboard with AI to analyze conversations between attendants and clients, generating metrics on resolution, satisfaction, scheduling, loss moments, and analysis by unit/service/attendant. Message retrieval for analysis integrated with Blip.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🤖 Tech
+
+- Next.js
+- TypeScript
+- Supabase
+- Tailwind CSS
+- Recharts
+- Lucide React
+- OpenAI API (gpt-5.5-nano)
+
+## ✅ Architecture
+
+[ Data From Blip ] --> [ Supabase Database ] --> [ Next.js API Routes ] --> [ Dashboard Frontend ]
+
+Core entities are defined in `src/types`:
+
+- `Client` — groups conversations from the same contact
+- `Conversation` — one analyzed conversation/session
+- `Message` — individual messages inside a conversation
+- `ConversationAnalysis` — AI/analytics output
+- `Attendant`, `Unit`, `Service` — dashboard filters and grouping
+
+Main API routes:
+
+```txt
+/api/dashboard/executivo
+/api/dashboard/atendentes
+/api/dashboard/jornada
+/api/analyze
+/api/import
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 💬 UI Components
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Reusable UI components live in:
+```
+src/components/ui
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+COMPONENTS SHOWCASE IN: /dev/ui
+```
 
-## Learn More
+Components showcase are generated automatically with a Script + Husky.
 
-To learn more about Next.js, take a look at the following resources:
+## 🎨 Extras
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- npm run ui (generates /dev/ui page)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- npm run headers (add directory headers to all files)

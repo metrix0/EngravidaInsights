@@ -79,8 +79,3 @@ export default function SidePanel({ items = defaultItems }: SidePanelProps) {
         </aside>
     );
 }
-
-export const __uiDemo = {
-    element: <SidePanel />,
-    code: "<SidePanel />",
-};
