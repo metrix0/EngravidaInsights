@@ -5,19 +5,19 @@
     --color-brand-soft: #fef2f2;
 
     --color-green: #10b981;
-    --color-green-soft: #ecfdf5;
+    --color-green-soft: #e6fdef;
 
     --color-red: #b91010;
-    --color-red-soft: #fdecec;
+    --color-red-soft: #feecec;
 
     --color-blue: #1683ff;
-    --color-blue-soft: #eff6ff;
+    --color-blue-soft: #e5f1ff;
 
     --color-orange: #f97316;
-    --color-orange-soft: #fff7ed;
+    --color-orange-soft: #fff2e3;
 
     --color-purple: #8b5cf6;
-    --color-purple-soft: #f5f3ff;
+    --color-purple-soft: #ede9fe;
 
     --color-border: #dadfe8;
     --color-card: #ffffff;
@@ -35,4 +35,56 @@ body {
     background: var(--background);
     color: var(--color-text);
     font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+
+button,
+a,
+input,
+select,
+textarea {
+    outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.skeleton-shimmer {
+    background: linear-gradient(
+            90deg,
+            #eef1f5 0%,
+            #e2e6ec 35%,
+            #f5f7fa 50%,
+            #e2e6ec 65%,
+            #eef1f5 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }

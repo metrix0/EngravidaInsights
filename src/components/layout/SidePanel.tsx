@@ -32,7 +32,7 @@ const defaultItems: SidePanelItem[] = [
 
 export default function SidePanel({ items = defaultItems }: SidePanelProps) {
     return (
-        <aside className="sticky left-0 top-0 z-40 flex h-screen max-h-screen w-[270px] flex-col overflow-y-auto border-r border-border bg-card px-6 py-7">
+        <aside className="sticky left-0 top-0 z-40 flex h-screen max-h-screen w-[250px] flex-col overflow-y-auto border-r border-border bg-card px-6 py-7">
             <div className="mb-10 flex items-center gap-2">
                 <img src="/logo.png" className="h-6" alt="Engravida" />
 

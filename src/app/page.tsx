@@ -27,7 +27,7 @@ import {
     YAxis,
 } from "recharts";
 
-import type { ExecutiveDashboardData } from "@/types";
+import type { ExecutiveDashboardData, FiltersResponse } from "@/types";
 
 import {
     Card,
@@ -36,28 +36,74 @@ import {
     PercentageBar,
     PercentageValue,
     SidePanel,
+    Skeleton,
+    HorizontalScroller
 } from "@/components";
 
 export default function ExecutiveDashboardPage() {
     const [data, setData] = useState<ExecutiveDashboardData | null>(null);
+    const [filters, setFilters] = useState<FiltersResponse | null>(null);
+
+    const [unitIds, setUnitIds] = useState<string[]>([]);
+    const [attendantIds, setAttendantIds] = useState<string[]>([]);
+    const [serviceIds, setServiceIds] = useState<string[]>([]);
+
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    useEffect(() => {
+        async function loadFilters() {
+            const response = await fetch("/api/dashboard/filters?entities=units,attendants,services");
+            const json: FiltersResponse = await response.json();
+
+            setFilters(json);
+        }
+
+        loadFilters();
+    }, []);
 
     useEffect(() => {
         async function loadDashboard() {
-            const response = await fetch("/api/dashboard/executivo?days=7");
+            if (data) {
+                setIsRefreshing(true);
+            } else {
+                setLoading(true);
+            }
+
+            const params = new URLSearchParams();
+            params.set("days", "7");
+
+            if (unitIds.length > 0) {
+                params.set("unit_ids", unitIds.join(","));
+            }
+
+            if (attendantIds.length > 0) {
+                params.set("attendant_ids", attendantIds.join(","));
+            }
+
+            if (serviceIds.length > 0) {
+                params.set("service_ids", serviceIds.join(","));
+            }
+
+            const response = await fetch(`/api/dashboard/executivo?${params.toString()}`);
             const json: ExecutiveDashboardData = await response.json();
 
             setData(json);
             setLoading(false);
+            setIsRefreshing(false);
         }
 
         loadDashboard();
-    }, []);
+    }, [unitIds, attendantIds, serviceIds]);
 
     if (loading) {
         return (
-            <main className="min-h-screen bg-white p-8 text-slate-900">
-                Carregando dashboard...
+            <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
+                <SidePanel />
+
+                <section className="flex-1 px-8 py-8">
+                    <DashboardSkeleton />
+                </section>
             </main>
         );
     }
@@ -82,52 +128,97 @@ export default function ExecutiveDashboardPage() {
                 <Header />
 
                 <div className="mb-8 flex justify-end gap-3">
-                    <FilterButton icon={<MapPin size={16} />} label="Todas as unidades" />
-                    <FilterButton icon={<User size={16} />} label="Todos os atendentes" />
-                    <FilterButton icon={<BarChart3 size={16} />} label="Todos os serviços" />
+                    <FilterButton
+                        icon={<MapPin size={16} />}
+                        label="Todas as unidades"
+                        values={unitIds}
+                        onChange={setUnitIds}
+                        options={filters?.units ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<User size={16} />}
+                        label="Todos os atendentes"
+                        values={attendantIds}
+                        onChange={setAttendantIds}
+                        options={filters?.attendants ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<BarChart3 size={16} />}
+                        label="Todos os serviços"
+                        values={serviceIds}
+                        onChange={setServiceIds}
+                        options={filters?.services ?? []}
+                    />
                 </div>
 
-                <section className="mb-6 grid grid-cols-5 gap-5">
-                    <KpiCard
-                        icon={<MessageCircle size={26} />}
-                        label="Conversas analisadas"
-                        value={data.kpis.conversations_analyzed.toLocaleString("pt-BR")}
-                        trend="↑ 15,2% vs. 7 dias anteriores"
-                        color="purple"
-                    />
+                {isRefreshing ? (
+                    <DashboardBodySkeleton />
+                ) : (<>
+                    <section className="mb-6 grid grid-cols-1 gap-5">
+                        <HorizontalScroller scrollAmount={400}>
+                            <div className="min-w-[260px]">
+                                <KpiCard
+                                    icon={<MessageCircle size={26} />}
+                                    label="Conversas analisadas"
+                                    currentValue={data.kpis.conversations_analyzed}
+                                    previousValue={Math.round(data.kpis.conversations_analyzed / 1.152)}
+                                    formatter={(value) => value.toLocaleString("pt-BR")}
+                                    color="purple"
+                                />
+                            </div>
 
-                    <KpiCard
-                        icon={<ShieldCheck size={26} />}
-                        label="Resolução real"
-                        value={`${data.kpis.real_resolution_rate}%`}
-                        trend="↑ 6,4% vs. 7 dias anteriores"
-                        color="green"
-                    />
+                            <div className="min-w-[260px]">
+                                <KpiCard
+                                    icon={<ShieldCheck size={26} />}
+                                    label="Resolução real"
+                                    currentValue={data.kpis.real_resolution_rate}
+                                    previousValue={Math.round(data.kpis.real_resolution_rate / 1.064)}
+                                    suffix="%"
+                                    color="green"
+                                />
+                            </div>
 
-                    <KpiCard
-                        icon={<Smile size={26} />}
-                        label="Clientes claramente satisfeitos"
-                        value={`${data.kpis.clear_satisfaction_rate}%`}
-                        trend="↑ 4,1% vs. 7 dias anteriores"
-                        color="blue"
-                    />
+                            <div className="min-w-[260px]">
+                                <KpiCard
+                                    icon={<Smile size={26} />}
+                                    label="Clientes claramente satisfeitos"
+                                    currentValue={data.kpis.clear_satisfaction_rate}
+                                    previousValue={Math.round(data.kpis.clear_satisfaction_rate / 1.041)}
+                                    suffix="%"
+                                    color="blue"
+                                />
+                            </div>
 
-                    <KpiCard
-                        icon={<Calendar size={26} />}
-                        label="Taxa de agendamento"
-                        value={`${data.kpis.scheduling_rate}%`}
-                        trend="↑ 8,7% vs. 7 dias anteriores"
-                        color="purple"
-                    />
+                            <div className="min-w-[260px]">
+                                <KpiCard
+                                    icon={<Calendar size={26} />}
+                                    label="Taxa de agendamento"
+                                    currentValue={data.kpis.scheduling_rate}
+                                    previousValue={Math.round(data.kpis.scheduling_rate / 1.087)}
+                                    suffix="%"
+                                    color="purple"
+                                />
+                            </div>
 
-                    <KpiCard
-                        icon={<Clock size={26} />}
-                        label="1ª resposta humana média"
-                        value={averageResponseMinutes === null ? "-" : `${averageResponseMinutes} min`}
-                        trend="↓ -6% vs. 7 dias anteriores"
-                        color="orange"
-                    />
-                </section>
+                            <div className="min-w-[260px]">
+                                <KpiCard
+                                    icon={<Clock size={26} />}
+                                    label="1ª resposta humana média"
+                                    currentValue={averageResponseMinutes ?? 0}
+                                    previousValue={
+                                        averageResponseMinutes === null
+                                            ? null
+                                            : Math.round(averageResponseMinutes / 0.94)
+                                    }
+                                    suffix=" min"
+                                    color="orange"
+                                    positiveDirection="down"
+                                />
+                            </div>
+                        </HorizontalScroller>
+                    </section>
 
                 <section className="mb-6 grid grid-cols-[1.45fr_0.95fr] gap-5">
                     <Card>
@@ -204,6 +295,7 @@ export default function ExecutiveDashboardPage() {
                     <ConversationGoalsCard data={data} />
                     <UnitViewCard data={data} />
                 </section>
+                    </>)}
             </section>
         </main>
     );
@@ -500,4 +592,99 @@ function ScoreHighlight({
             </div>
         </div>
     );
+}
+
+function DashboardSkeleton() {
+    return (
+        <>
+            <div className="mb-8 flex items-start justify-between">
+                <div>
+                    <Skeleton className="h-9 w-[320px]" />
+                    <Skeleton className="mt-3 h-4 w-[260px]" />
+                </div>
+
+                <Skeleton className="h-12 w-[310px]" />
+            </div>
+
+            <div className="mb-8 flex justify-end gap-3">
+                <Skeleton className="h-12 w-[220px]" />
+                <Skeleton className="h-12 w-[220px]" />
+                <Skeleton className="h-12 w-[220px]" />
+            </div>
+
+            <DashboardBodySkeleton/>
+        </>
+    );
+}
+
+function DashboardBodySkeleton() {
+    return (<>
+            <section className="mb-6 grid grid-cols-5 gap-5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                    <Card key={index}>
+                        <div className="flex items-center gap-5 overflow-hidden">
+                            <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
+
+                            <div className="min-w-0 flex-1">
+                                <Skeleton className="h-3 w-[55%]" />
+                                <Skeleton className="mt-3 h-8 w-[40%]" />
+                                <Skeleton className="mt-3 h-3 w-[75%]" />
+                            </div>
+                        </div>
+                    </Card>
+                ))}
+            </section>
+
+            <section className="mb-6 grid grid-cols-[1.45fr_0.95fr] gap-5">
+                <Card>
+                    <div className="mb-5 flex items-center justify-between gap-6">
+                        <div className="min-w-0 flex-1">
+                            <Skeleton className="h-6 w-[30%]" />
+                            <Skeleton className="mt-3 h-4 w-[55%]" />
+                        </div>
+
+                        <Skeleton className="h-10 w-[18%] min-w-[110px] max-w-[150px]" />
+                    </div>
+
+                    <Skeleton className="h-[290px] w-full" />
+                </Card>
+
+                <Card>
+                    <Skeleton className="mb-6 h-6 w-[45%]" />
+
+                    <div className="grid grid-cols-[38%_1fr] gap-4">
+                        <Skeleton className="aspect-square w-full rounded-full" />
+
+                        <div className="min-w-0 space-y-4">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-[80%]" />
+                            <Skeleton className="h-4 w-[90%]" />
+
+                            <div className="pt-4">
+                                <Skeleton className="h-11 w-full" />
+                            </div>
+
+                            <Skeleton className="h-11 w-full" />
+                            <Skeleton className="h-11 w-full" />
+                        </div>
+                    </div>
+                </Card>
+            </section>
+
+            <section className="grid grid-cols-3 gap-5">
+                {Array.from({ length: 3 }).map((_, index) => (
+                    <Card key={index}>
+                        <Skeleton className="mb-5 h-6 w-[45%]" />
+
+                        <div className="space-y-4">
+                            <Skeleton className="h-8 w-full" />
+                            <Skeleton className="h-8 w-[92%]" />
+                            <Skeleton className="h-8 w-[84%]" />
+                            <Skeleton className="h-8 w-full" />
+                        </div>
+                    </Card>
+                ))}
+            </section>
+        </>
+    )
 }

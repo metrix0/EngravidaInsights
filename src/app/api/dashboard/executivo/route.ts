@@ -7,9 +7,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     const days = Number(searchParams.get("days") ?? 7);
-    const unitId = searchParams.get("unit_id");
-    const serviceId = searchParams.get("service_id");
-    const attendantId = searchParams.get("attendant_id");
+    const unitIds = parseIds(searchParams.get("unit_ids"));
+    const serviceIds = parseIds(searchParams.get("service_ids"));
+    const attendantIds = parseIds(searchParams.get("attendant_ids"));
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -33,9 +33,17 @@ export async function GET(request: Request) {
     `)
         .gte("started_at", startDate.toISOString());
 
-    if (unitId) query = query.eq("unit_id", unitId);
-    if (serviceId) query = query.eq("service_id", serviceId);
-    if (attendantId) query = query.eq("attendant_id", attendantId);
+    if (unitIds.length > 0) {
+        query = query.in("unit_id", unitIds);
+    }
+
+    if (serviceIds.length > 0) {
+        query = query.in("service_id", serviceIds);
+    }
+
+    if (attendantIds.length > 0) {
+        query = query.in("attendant_id", attendantIds);
+    }
 
     const { data, error } = await query;
 
@@ -48,9 +56,9 @@ export async function GET(request: Request) {
     const response: ExecutiveDashboardData = {
         filters: {
             days,
-            unit_id: unitId,
-            service_id: serviceId,
-            attendant_id: attendantId,
+            unit_ids: unitIds,
+            service_ids: serviceIds,
+            attendant_ids: attendantIds,
         },
 
         kpis: buildKpis(analyses),
@@ -338,4 +346,13 @@ function getDropoffRecommendation(moment: string): string {
     };
 
     return recommendations[moment] ?? "Revisar conversas afetadas para identificar o padrão de perda.";
+}
+
+function parseIds(value: string | null): string[] {
+    if (!value) return [];
+
+    return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
 }

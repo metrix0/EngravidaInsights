@@ -42,7 +42,7 @@ Reusable UI components live in:
 ```
 src/components/ui
 
-COMPONENTS SHOWCASE IN: /dev/ui
+COMPONENTS SHOWCASE IN: localhost:3000/dev/ui
 ```
 
 Components showcase are generated automatically with a Script + Husky.

@@ -2,9 +2,9 @@
 export type ExecutiveDashboardData = {
     filters: {
         days: number;
-        unit_id: string | null;
-        service_id: string | null;
-        attendant_id: string | null;
+        unit_ids: string[] | null;
+        service_ids: string[] | null;
+        attendant_ids: string[] | null;
     };
 
     kpis: {

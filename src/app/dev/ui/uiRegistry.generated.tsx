@@ -4,9 +4,11 @@
 
 import { __uiDemo as CardDemo } from "@/components/ui/Card";
 import { __uiDemo as FilterButtonDemo } from "@/components/ui/FilterButton";
+import { __uiDemo as HorizontalScrollerDemo } from "@/components/ui/HorizontalScroller";
 import { __uiDemo as KpiCardDemo } from "@/components/ui/KpiCard";
 import { __uiDemo as PercentageBarDemo } from "@/components/ui/PercentageBar";
 import { __uiDemo as PercentageValueDemo } from "@/components/ui/PercentageValue";
+import { __uiDemo as SkeletonDemo } from "@/components/ui/Skeleton";
 
 export const uiRegistry = [
   {
@@ -16,6 +18,10 @@ export const uiRegistry = [
   {
     name: "FilterButton",
     ...FilterButtonDemo,
+  },
+  {
+    name: "HorizontalScroller",
+    ...HorizontalScrollerDemo,
   },
   {
     name: "KpiCard",
@@ -28,5 +34,9 @@ export const uiRegistry = [
   {
     name: "PercentageValue",
     ...PercentageValueDemo,
+  },
+  {
+    name: "Skeleton",
+    ...SkeletonDemo,
   },
 ].filter(Boolean);
