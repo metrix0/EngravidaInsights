@@ -7,12 +7,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     const days = Number(searchParams.get("days") ?? 7);
+
+    const customStartDate = searchParams.get("start_date");
+    const customEndDate = searchParams.get("end_date");
+
     const unitIds = parseIds(searchParams.get("unit_ids"));
     const serviceIds = parseIds(searchParams.get("service_ids"));
     const attendantIds = parseIds(searchParams.get("attendant_ids"));
 
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const dateRange = getDateRange({
+        days,
+        customStartDate,
+        customEndDate,
+    });
 
     let query = supabase
         .from("conversation_analysis")
@@ -31,7 +38,8 @@ export async function GET(request: Request) {
         name
       )
     `)
-        .gte("started_at", startDate.toISOString());
+        .gte("started_at", dateRange.start.toISOString())
+        .lte("started_at", dateRange.end.toISOString());
 
     if (unitIds.length > 0) {
         query = query.in("unit_id", unitIds);
@@ -56,6 +64,8 @@ export async function GET(request: Request) {
     const response: ExecutiveDashboardData = {
         filters: {
             days,
+            start_date: customStartDate,
+            end_date: customEndDate,
             unit_ids: unitIds,
             service_ids: serviceIds,
             attendant_ids: attendantIds,
@@ -355,4 +365,28 @@ function parseIds(value: string | null): string[] {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+}
+
+function getDateRange({
+                          days,
+                          customStartDate,
+                          customEndDate,
+                      }: {
+    days: number;
+    customStartDate: string | null;
+    customEndDate: string | null;
+}) {
+    if (customStartDate) {
+        const start = new Date(`${customStartDate}T00:00:00.000`);
+        const end = new Date(`${customEndDate ?? customStartDate}T23:59:59.999`);
+
+        return { start, end };
+    }
+
+    const end = new Date();
+    const start = new Date();
+
+    start.setDate(start.getDate() - days);
+
+    return { start, end };
 }

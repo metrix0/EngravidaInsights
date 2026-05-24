@@ -40,6 +40,13 @@ import {
     HorizontalScroller, CalendarButton, ButtonGroup
 } from "@/components";
 
+type Period = "7" | "30" | "90";
+
+type DateRange = {
+    start: string | null;
+    end: string | null;
+};
+
 export default function ExecutiveDashboardPage() {
     const [data, setData] = useState<ExecutiveDashboardData | null>(null);
     const [filters, setFilters] = useState<FiltersResponse | null>(null);
@@ -50,6 +57,13 @@ export default function ExecutiveDashboardPage() {
 
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const [period, setPeriod] = useState<Period | null>("7");
+
+    const [selectedRange, setSelectedRange] = useState<DateRange>({
+        start: null,
+        end: null,
+    });
 
     useEffect(() => {
         async function loadFilters() {
@@ -71,7 +85,13 @@ export default function ExecutiveDashboardPage() {
             }
 
             const params = new URLSearchParams();
-            params.set("days", "7");
+
+            if (selectedRange.start) {
+                params.set("start_date", selectedRange.start);
+                params.set("end_date", selectedRange.end ?? selectedRange.start);
+            } else {
+                params.set("days", period ?? "7");
+            }
 
             if (unitIds.length > 0) {
                 params.set("unit_ids", unitIds.join(","));
@@ -94,7 +114,7 @@ export default function ExecutiveDashboardPage() {
         }
 
         loadDashboard();
-    }, [unitIds, attendantIds, serviceIds]);
+    }, [unitIds, attendantIds, serviceIds, period, selectedRange]);
 
     if (loading) {
         return (
@@ -125,7 +145,12 @@ export default function ExecutiveDashboardPage() {
         <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
             <SidePanel />
             <section className="flex-1 px-8 py-8">
-                <Header />
+                <Header
+                    period={period}
+                    setPeriod={setPeriod}
+                    selectedRange={selectedRange}
+                    setSelectedRange={setSelectedRange}
+                />
 
                 <div className="mb-8 flex justify-end gap-3">
                     <FilterButton
@@ -233,9 +258,6 @@ export default function ExecutiveDashboardPage() {
                                 </div>
                             </div>
 
-                            <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-                                Últimos 7 dias
-                            </button>
                         </div>
 
                         <div className="h-[290px]">
@@ -257,7 +279,7 @@ export default function ExecutiveDashboardPage() {
                                     <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
                                     <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                                     <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                                    <Tooltip />
+                                    <Tooltip content={<DailyEvolutionTooltip />} />
 
                                     <Area
                                         type="monotone"
@@ -301,17 +323,17 @@ export default function ExecutiveDashboardPage() {
     );
 }
 
-function Header() {
-
-    const [period, setPeriod] = useState<"7" | "30" | "90" | null>("7");
-    const [selectedRange, setSelectedRange] = useState<{
-        start: string | null;
-        end: string | null;
-    }>({
-        start: null,
-        end: null,
-    });
-
+function Header({
+                    period,
+                    setPeriod,
+                    selectedRange,
+                    setSelectedRange,
+                }: {
+    period: Period | null;
+    setPeriod: (value: Period | null) => void;
+    selectedRange: DateRange;
+    setSelectedRange: (value: DateRange) => void;
+}) {
     return (
         <header className="mb-8 flex items-start justify-between">
             <div>
@@ -322,7 +344,6 @@ function Header() {
                     Visão geral do atendimento e da conversão
                 </p>
             </div>
-
 
             <ButtonGroup
                 value={period}
@@ -712,4 +733,58 @@ function DashboardBodySkeleton() {
             </section>
         </>
     )
+}
+
+function DailyEvolutionTooltip({
+                                   active,
+                                   payload,
+                                   label,
+                               }: {
+    active?: boolean;
+    payload?: any[];
+    label?: string;
+}) {
+    if (!active || !payload?.length) return null;
+
+    const labels: Record<string, string> = {
+        conversations: "Conversas",
+        resolution_rate: "Resolução",
+        satisfaction_rate: "Satisfação",
+    };
+
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
+            <div className="mb-3 text-sm font-semibold text-slate-800">
+                {label}
+            </div>
+
+            <div className="space-y-2 text-sm mt-2">
+                {payload.map((item) => (
+                    <div
+                        key={item.dataKey}
+                        className="flex items-center justify-between gap-6"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                            />
+
+                            <span style={{ color: item.color }}>
+                                {labels[item.dataKey] ?? item.dataKey}
+                            </span>
+                        </div>
+
+                        <span
+                            className="font-semibold"
+                            style={{ color: item.color }}
+                        >
+                            {item.value}
+                            {item.dataKey.includes("rate") ? "%" : ""}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
