@@ -37,7 +37,7 @@ import {
     PercentageValue,
     SidePanel,
     Skeleton,
-    HorizontalScroller, CalendarButton, ButtonGroup
+    HorizontalScroller, CalendarButton, ButtonGroup, InfoTooltip
 } from "@/components";
 
 type Period = "7" | "30" | "90";
@@ -180,7 +180,7 @@ export default function ExecutiveDashboardPage() {
 
                 {isRefreshing ? (
                     <DashboardBodySkeleton />
-                ) : (<>
+                ) : (<div className={"pb-12 overflow-x-hidden"}>
                     <section className="mb-6 grid grid-cols-1 gap-5">
                         <HorizontalScroller scrollAmount={400}>
                             <div className="min-w-[260px]">
@@ -308,16 +308,18 @@ export default function ExecutiveDashboardPage() {
                             </ResponsiveContainer>
                         </div>
                     </Card>
+                    <DropoffCard data={data} />
 
-                    <ScoreCard data={data} />
+
                 </section>
 
-                <section className="grid grid-cols-3 gap-5">
-                    <DropoffCard data={data} />
+                <section className="grid grid-cols-2 gap-5">
                     <ConversationGoalsCard data={data} />
                     <UnitViewCard data={data} />
                 </section>
-                    </>)}
+
+
+                </div>)}
             </section>
         </main>
     );
@@ -377,103 +379,43 @@ function Header({
     );
 }
 
-function ScoreCard({ data }: { data: ExecutiveDashboardData }) {
-    const score = data.attendance_score.overall_score;
-
-    return (
-        <Card>
-            <h2 className="mb-6 text-lg font-bold">Score geral do atendimento</h2>
-
-            <div className="grid grid-cols-[220px_1fr] gap-4">
-                <div className="relative h-52 w-52">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={[
-                                    { name: "score", value: score },
-                                    { name: "rest", value: 100 - score },
-                                ]}
-                                dataKey="value"
-                                innerRadius={78}
-                                outerRadius={96}
-                                startAngle={90}
-                                endAngle={-270}
-                            >
-                                <Cell fill="#7460ee" />
-                                <Cell fill="#eee9ff" />
-                            </Pie>
-                        </PieChart>
-                    </ResponsiveContainer>
-
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <div className="text-6xl font-bold text-slate-800">{score}</div>
-                        <div className="text-lg text-slate-500">/ 100</div>
-                    </div>
-                </div>
-
-                <div>
-                    <div className="mb-5 space-y-3 text-sm">
-                        <ScoreLegend color="bg-emerald-500" label="Excelente" range="80 – 100" />
-                        <ScoreLegend color="bg-blue-500" label="Bom" range="60 – 79" />
-                        <ScoreLegend color="bg-orange-500" label="Precisa melhorar" range="0 – 59" />
-                    </div>
-
-                    <div className="space-y-4 border-t border-slate-200 pt-5">
-                        <ScoreHighlight
-                            color="emerald"
-                            title="Boa resolução"
-                            description="Resolução acima da média do período anterior."
-                        />
-                        <ScoreHighlight
-                            color="orange"
-                            title="Queda após preço"
-                            description="Momento crítico impactando a conversão."
-                        />
-                        <ScoreHighlight
-                            color="blue"
-                            title="Tempo de resposta estável"
-                            description="1ª resposta humana dentro do esperado."
-                        />
-                    </div>
-                </div>
-            </div>
-        </Card>
-    );
-}
-
 function DropoffCard({ data }: { data: ExecutiveDashboardData }) {
     return (
         <Card>
             <div className="mb-5">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold">Momentos de perda mais comuns</h2>
-                    <HelpCircle size={16} className="text-slate-400" />
-                </div>
+                    <InfoTooltip text="Mostra os pontos onde clientes mais abandonam conversas não resolvidas. Ajuda a identificar gargalos como preço, consulta online, demora no atendimento ou opções de agendamento.">
+                        <HelpCircle size={16} className="text-slate-400" />
+                    </InfoTooltip>                </div>
                 <p className="mt-1 text-xs text-slate-500">
                     Base: conversas não resolvidas
                 </p>
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-7 ">
                 {data.dropoff_moments.map((item, index) => (
-                    <div key={item.moment}>
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-3">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">
-                  {index + 1}
-                </span>
-                                <span className="font-medium text-slate-700">{item.label}</span>
-                            </div>
+<div className={"flex gap-3 items-center h-full"}>
+    <span className="flex h-6 w-6 items-center justify-center bg-violet-500 rounded-full text-xs font-bold text-white">{index + 1}</span>
+    <div key={item.moment} className={" w-full"}>
+        <div className="mb-2  flex items-center justify-between text-sm">
 
-                            <span className="font-bold text-slate-700">
-                {item.percentage}%
-              </span>
-                        </div>
 
-                        <div className="ml-9">
-                            <PercentageBar value={item.percentage} color="purple" />
-                        </div>
-                    </div>
+            <div className="flex items-center gap-3" >
+                <span className="font-medium text-slate-700">{item.label}</span>
+            </div>
+
+            <span className="font-bold text-slate-700">
+                                    {item.percentage}%
+                              </span>
+        </div>
+
+        <div className="">
+            <PercentageBar value={item.percentage} color="purple" />
+        </div>
+    </div>
+</div>
+
                 ))}
             </div>
         </Card>
@@ -487,7 +429,9 @@ function ConversationGoalsCard({ data }: { data: ExecutiveDashboardData }) {
         <Card>
             <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-lg font-bold">Objetivo das conversas</h2>
-                <HelpCircle size={16} className="text-slate-400" />
+                <InfoTooltip text="Mostra qual era o objetivo principal das conversas analisadas no período. A porcentagem representa a participação de cada objetivo no total de conversas, como agendar consulta, confirmar presença, reagendar, explicar tratamento ou responder dúvidas." >
+                    <HelpCircle size={16} className="text-slate-400" />
+                </InfoTooltip>
             </div>
 
             <div className="grid grid-cols-[180px_1fr] items-center gap-4">
@@ -544,8 +488,8 @@ function UnitViewCard({ data }: { data: ExecutiveDashboardData }) {
         <Card>
             <h2 className="mb-5 text-lg font-bold">Visão por unidade</h2>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-                <div className="grid grid-cols-4 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+            <div className="overflow-hidden rounded-xl">
+                <div className="grid grid-cols-4 bg-slate-50 px-2 py-3 text-xs font-bold text-slate-500">
                     <div>Unidade</div>
                     <div>Resolução</div>
                     <div>Satisfação</div>
@@ -555,7 +499,7 @@ function UnitViewCard({ data }: { data: ExecutiveDashboardData }) {
                 {data.by_unit.map((unit) => (
                     <div
                         key={unit.unit_id ?? unit.unit_name}
-                        className="grid grid-cols-4 border-t border-slate-100 px-4 py-3 text-sm"
+                        className="grid grid-cols-4 border-t border-slate-100 px-2 py-3 text-sm"
                     >
                         <div className="font-medium text-slate-600">{unit.unit_name}</div>
 
@@ -592,53 +536,6 @@ function LegendDot({ color, label }: { color: string; label: string }) {
     );
 }
 
-function ScoreLegend({
-                         color,
-                         label,
-                         range,
-                     }: {
-    color: string;
-    label: string;
-    range: string;
-}) {
-    return (
-        <div className="grid grid-cols-[14px_1fr_auto] items-center gap-3">
-            <span className={`h-3 w-3 rounded-full ${color}`} />
-            <span className="font-medium text-slate-600">{label}</span>
-            <span className="text-slate-400">{range}</span>
-        </div>
-    );
-}
-
-function ScoreHighlight({
-                            color,
-                            title,
-                            description,
-                        }: {
-    color: "emerald" | "orange" | "blue";
-    title: string;
-    description: string;
-}) {
-    const styles = {
-        emerald: "border-emerald-500 text-emerald-600",
-        orange: "border-orange-500 text-orange-500",
-        blue: "border-blue-500 text-blue-600",
-    };
-
-    return (
-        <div className="flex items-start gap-3">
-            <div
-                className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${styles[color]}`}
-            >
-                ✓
-            </div>
-            <div>
-                <div className="text-sm font-bold text-slate-800">{title}</div>
-                <div className="text-xs text-slate-500">{description}</div>
-            </div>
-        </div>
-    );
-}
 
 function DashboardSkeleton() {
     return (

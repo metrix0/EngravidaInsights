@@ -99,17 +99,26 @@ function buildKpis(analyses: any[]) {
         (item) => item.satisfaction_score >= 70
     ).length;
 
-    const scheduled = analyses.filter((item) =>
+    const schedulingRelevant = analyses.filter((item) =>
+        [
+            "schedule_consultation",
+            "reschedule_consultation",
+            "confirm_attendance",
+        ].includes(item.conversation_goal)
+    );
+
+    const scheduled = schedulingRelevant.filter((item) =>
         ["scheduled", "rescheduled", "confirmed_attendance"].includes(
             item.customer_final_state
         )
     ).length;
 
+
     return {
         conversations_analyzed: total,
         real_resolution_rate: percentage(resolved, total),
         clear_satisfaction_rate: percentage(satisfied, total),
-        scheduling_rate: percentage(scheduled, total),
+        scheduling_rate: percentage(scheduled, schedulingRelevant.length),
         average_first_human_response_seconds: average(
             analyses
                 .map((item) => item.first_human_response_time_seconds)

@@ -9,3 +9,4 @@ export { default as Skeleton } from "./ui/Skeleton";
 export { default as HorizontalScroller } from "./ui/HorizontalScroller";
 export { default as ButtonGroup } from "./ui/ButtonGroup";
 export { default as CalendarButton } from "./ui/CalendarButton";
+export { default as InfoTooltip } from "./ui/InfoTooltip";
