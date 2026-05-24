@@ -2,6 +2,8 @@
 // Do not edit manually.
 // Run: npm run ui:generate
 
+import { __uiDemo as ButtonGroupDemo } from "@/components/ui/ButtonGroup";
+import { __uiDemo as CalendarButtonDemo } from "@/components/ui/CalendarButton";
 import { __uiDemo as CardDemo } from "@/components/ui/Card";
 import { __uiDemo as FilterButtonDemo } from "@/components/ui/FilterButton";
 import { __uiDemo as HorizontalScrollerDemo } from "@/components/ui/HorizontalScroller";
@@ -11,6 +13,14 @@ import { __uiDemo as PercentageValueDemo } from "@/components/ui/PercentageValue
 import { __uiDemo as SkeletonDemo } from "@/components/ui/Skeleton";
 
 export const uiRegistry = [
+  {
+    name: "ButtonGroup",
+    ...ButtonGroupDemo,
+  },
+  {
+    name: "CalendarButton",
+    ...CalendarButtonDemo,
+  },
   {
     name: "Card",
     ...CardDemo,

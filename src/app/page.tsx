@@ -37,7 +37,7 @@ import {
     PercentageValue,
     SidePanel,
     Skeleton,
-    HorizontalScroller
+    HorizontalScroller, CalendarButton, ButtonGroup
 } from "@/components";
 
 export default function ExecutiveDashboardPage() {
@@ -302,6 +302,16 @@ export default function ExecutiveDashboardPage() {
 }
 
 function Header() {
+
+    const [period, setPeriod] = useState<"7" | "30" | "90" | null>("7");
+    const [selectedRange, setSelectedRange] = useState<{
+        start: string | null;
+        end: string | null;
+    }>({
+        start: null,
+        end: null,
+    });
+
     return (
         <header className="mb-8 flex items-start justify-between">
             <div>
@@ -313,20 +323,35 @@ function Header() {
                 </p>
             </div>
 
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1">
-                <button className="rounded-lg bg-red-500 px-6 py-3 text-sm font-semibold text-white">
-                    7 dias
-                </button>
-                <button className="px-6 py-3 text-sm font-medium text-slate-600">
-                    30 dias
-                </button>
-                <button className="px-6 py-3 text-sm font-medium text-slate-600">
-                    90 dias
-                </button>
-                <button className="border-l border-slate-200 px-4 py-3 text-slate-500">
-                    <Calendar size={16} />
-                </button>
-            </div>
+
+            <ButtonGroup
+                value={period}
+                onChange={(value) => {
+                    setPeriod(value);
+                    setSelectedRange({
+                        start: null,
+                        end: null,
+                    });
+                }}
+                options={[
+                    { value: "7", label: "7 dias" },
+                    { value: "30", label: "30 dias" },
+                    { value: "90", label: "90 dias" },
+                ]}
+            >
+                <CalendarButton
+                    value={selectedRange}
+                    onChange={setSelectedRange}
+                    onApply={(range) => {
+                        if (range.start) {
+                            setPeriod(null);
+                            return;
+                        }
+
+                        setPeriod("7");
+                    }}
+                />
+            </ButtonGroup>
         </header>
     );
 }
