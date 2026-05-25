@@ -1,0 +1,222 @@
+// src/lib/conversations/messagesToConversations.ts
+import { supabase } from "@/lib/supabase/client";
+import type { AnalyzeConversationInput, Message } from "@/types";
+
+export async function messageToConversations({
+                                                 inactivityHours = 6,
+                                                 limit = 1000,
+                                             }: {
+    inactivityHours?: number;
+    limit?: number;
+} = {}): Promise<AnalyzeConversationInput[]> {
+    const cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() - inactivityHours);
+
+    const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .is("conversation_id", null)
+        .order("client_id", { ascending: true })
+        .order("sent_at", { ascending: true })
+        .limit(limit);
+
+    if (error) {
+        throw new Error(`Failed to fetch pending messages: ${error.message}`);
+    }
+
+    const pendingMessages = (data ?? []) as Message[];
+
+    console.log("[messageToConversations] Gathered non-analyzed messages", {
+        pending_messages_found: pendingMessages.length,
+        inactivity_hours: inactivityHours,
+        cutoff: cutoff.toISOString(),
+    });
+
+    const endedGroups = getEndedMessageGroups(
+        pendingMessages,
+        cutoff,
+        inactivityHours
+    );
+
+    console.log("[messageToConversations] Ended message groups found", {
+        ended_groups_found: endedGroups.length,
+    });
+
+    const analysisInputs: AnalyzeConversationInput[] = [];
+
+    for (const messages of endedGroups) {
+        const analysisInput = await createConversationAndAttachMessages(messages);
+        analysisInputs.push(analysisInput);
+    }
+
+    console.log("[messageToConversations] Conversations saved to Supabase", {
+        conversations_created: analysisInputs.length,
+    });
+
+    return analysisInputs;
+}
+
+function getEndedMessageGroups(
+    messages: Message[],
+    cutoff: Date,
+    inactivityHours: number
+): Message[][] {
+    const messagesByClient = new Map<string, Message[]>();
+
+    for (const message of messages) {
+        const clientMessages = messagesByClient.get(message.client_id) ?? [];
+        clientMessages.push(message);
+        messagesByClient.set(message.client_id, clientMessages);
+    }
+
+    const endedGroups: Message[][] = [];
+
+    for (const clientMessages of messagesByClient.values()) {
+        const sortedMessages = [...clientMessages].sort(
+            (a, b) =>
+                new Date(a.sent_at).getTime() -
+                new Date(b.sent_at).getTime()
+        );
+
+        let currentGroup: Message[] = [];
+
+        for (const message of sortedMessages) {
+            const previousMessage = currentGroup.at(-1);
+
+            if (!previousMessage) {
+                currentGroup.push(message);
+                continue;
+            }
+
+            const gapHours =
+                (new Date(message.sent_at).getTime() -
+                    new Date(previousMessage.sent_at).getTime()) /
+                1000 /
+                60 /
+                60;
+
+            if (gapHours >= inactivityHours) {
+                if (isEnded(currentGroup, cutoff)) {
+                    endedGroups.push(currentGroup);
+                }
+
+                currentGroup = [message];
+                continue;
+            }
+
+            currentGroup.push(message);
+        }
+
+        if (isEnded(currentGroup, cutoff)) {
+            endedGroups.push(currentGroup);
+        }
+    }
+
+    return endedGroups;
+}
+
+function isEnded(messages: Message[], cutoff: Date): boolean {
+    const lastMessage = messages.at(-1);
+
+    if (!lastMessage) return false;
+
+    return new Date(lastMessage.sent_at).getTime() <= cutoff.getTime();
+}
+
+async function createConversationAndAttachMessages(
+    messages: Message[]
+): Promise<AnalyzeConversationInput> {
+    const sortedMessages = [...messages].sort(
+        (a, b) =>
+            new Date(a.sent_at).getTime() -
+            new Date(b.sent_at).getTime()
+    );
+
+    const firstMessage = sortedMessages[0];
+    const lastMessage = sortedMessages.at(-1);
+
+    if (!firstMessage || !lastMessage) {
+        throw new Error("Cannot create conversation from empty messages array");
+    }
+
+    const attendantMessage = sortedMessages.find(
+        (message) => message.sender_type === "attendant"
+    );
+
+    const { data: conversation, error: conversationError } = await supabase
+        .from("conversations")
+        .insert({
+            client_id: firstMessage.client_id,
+            source: "blip",
+
+            started_at: firstMessage.sent_at,
+            ended_at: lastMessage.sent_at,
+
+            attendant_id: null,
+            attendant_chat_name: attendantMessage?.sender_name ?? null,
+
+            unit_id: null,
+            service_id: null,
+        })
+        .select("id")
+        .single();
+
+    if (conversationError) {
+        throw new Error(
+            `Failed to create conversation: ${conversationError.message}`
+        );
+    }
+
+    const { error: updateMessagesError } = await supabase
+        .from("messages")
+        .update({
+            conversation_id: conversation.id,
+        })
+        .in(
+            "id",
+            sortedMessages.map((message) => message.id)
+        );
+
+    if (updateMessagesError) {
+        throw new Error(
+            `Failed to attach messages to conversation: ${updateMessagesError.message}`
+        );
+    }
+
+    return {
+        conversation_id: conversation.id,
+        client_id: firstMessage.client_id,
+
+        started_at: firstMessage.sent_at,
+        ended_at: lastMessage.sent_at,
+
+        attendant_id: null,
+        unit_id: null,
+        service_id: null,
+
+        conversationText: buildConversationText(sortedMessages),
+    };
+}
+
+function buildConversationText(messages: Message[]): string {
+    return messages
+        .map((message) => {
+            const date = new Date(message.sent_at).toLocaleString("pt-BR");
+            const sender = getSenderLabel(message);
+
+            return `[${date}] ${sender}: ${message.text}`;
+        })
+        .join("\n");
+}
+
+function getSenderLabel(message: Message): string {
+    if (message.sender_type === "client") return "Cliente";
+
+    if (message.sender_type === "attendant") {
+        return message.sender_name ?? "Atendente";
+    }
+
+    if (message.sender_type === "bot") return "Bot";
+
+    return "Sistema";
+}

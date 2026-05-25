@@ -12,11 +12,13 @@
     "ui": "node scripts/generate-ui-registry.mjs",
     "analyze": "node scripts/test-analyze.mjs",
     "analysis:save": "node --env-file=.env.local --import tsx scripts/test-save-analysis.ts",
-    "analysis:ads": "node --env-file=.env.local --import tsx scripts/test-derive-ad-events.ts"
+    "analysis:ads": "node --env-file=.env.local --import tsx scripts/test-derive-ad-events.ts",
+    "messages": "node --env-file=.env.local scripts/add-messages.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
     "date-fns": "^4.2.1",
+    "groq-sdk": "^1.2.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "openai": "^6.39.0",

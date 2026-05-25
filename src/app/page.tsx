@@ -141,6 +141,11 @@ export default function ExecutiveDashboardPage() {
             ? null
             : Math.round(data.kpis.average_first_human_response_seconds / 60);
 
+    const previousAverageResponseMinutes =
+        data.previous_kpis.average_first_human_response_seconds === null
+            ? null
+            : Math.round(data.previous_kpis.average_first_human_response_seconds / 60);
+
     return (
         <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
             <SidePanel />
@@ -188,7 +193,7 @@ export default function ExecutiveDashboardPage() {
                                     icon={<MessageCircle size={26} />}
                                     label="Conversas analisadas"
                                     currentValue={data.kpis.conversations_analyzed}
-                                    previousValue={Math.round(data.kpis.conversations_analyzed / 1.152)}
+                                    previousValue={data.previous_kpis.conversations_analyzed}
                                     formatter={(value) => value.toLocaleString("pt-BR")}
                                     color="purple"
                                 />
@@ -199,7 +204,7 @@ export default function ExecutiveDashboardPage() {
                                     icon={<ShieldCheck size={26} />}
                                     label="Resolução real"
                                     currentValue={data.kpis.real_resolution_rate}
-                                    previousValue={Math.round(data.kpis.real_resolution_rate / 1.064)}
+                                    previousValue={data.previous_kpis.real_resolution_rate}
                                     suffix="%"
                                     color="green"
                                 />
@@ -210,7 +215,7 @@ export default function ExecutiveDashboardPage() {
                                     icon={<Smile size={26} />}
                                     label="Clientes claramente satisfeitos"
                                     currentValue={data.kpis.clear_satisfaction_rate}
-                                    previousValue={Math.round(data.kpis.clear_satisfaction_rate / 1.041)}
+                                    previousValue={data.previous_kpis.clear_satisfaction_rate}
                                     suffix="%"
                                     color="blue"
                                 />
@@ -221,7 +226,7 @@ export default function ExecutiveDashboardPage() {
                                     icon={<Calendar size={26} />}
                                     label="Taxa de agendamento"
                                     currentValue={data.kpis.scheduling_rate}
-                                    previousValue={Math.round(data.kpis.scheduling_rate / 1.087)}
+                                    previousValue={data.previous_kpis.scheduling_rate}
                                     suffix="%"
                                     color="purple"
                                 />
@@ -232,11 +237,7 @@ export default function ExecutiveDashboardPage() {
                                     icon={<Clock size={26} />}
                                     label="1ª resposta humana média"
                                     currentValue={averageResponseMinutes ?? 0}
-                                    previousValue={
-                                        averageResponseMinutes === null
-                                            ? null
-                                            : Math.round(averageResponseMinutes / 0.94)
-                                    }
+                                    previousValue={previousAverageResponseMinutes}
                                     suffix=" min"
                                     color="orange"
                                     positiveDirection="down"
@@ -395,9 +396,9 @@ function DropoffCard({ data }: { data: ExecutiveDashboardData }) {
 
             <div className="space-y-7 ">
                 {data.dropoff_moments.map((item, index) => (
-<div className={"flex gap-3 items-center h-full"}>
+<div key={item.moment}  className={"flex gap-3 items-center h-full"}>
     <span className="flex h-6 w-6 items-center justify-center bg-violet-500 rounded-full text-xs font-bold text-white">{index + 1}</span>
-    <div key={item.moment} className={" w-full"}>
+    <div className={" w-full"}>
         <div className="mb-2  flex items-center justify-between text-sm">
 
 

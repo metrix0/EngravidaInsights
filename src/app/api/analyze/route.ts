@@ -1,28 +1,50 @@
 // src/app/api/analyze/route.ts
 import { NextResponse } from "next/server";
 
-import { analyzeConversation } from "@/lib/ai/analyzeConversation";
-import { saveConversationAnalysis } from "@/lib/analysis/saveConversationAnalysis";
-import { deriveAdEventsFromAnalysis } from "@/lib/ads/deriveAdEventsFromAnalysis";
-import type { AnalyzeConversationInput } from "@/types";
+import { messageToConversations } from "@/lib/conversations/messagesToConversations";
+import { gatherPendingConversationsToAnalysis } from "@/lib/conversations/gatherPendingConversationsToAnalysis";
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
     try {
-        const body = (await request.json()) as AnalyzeConversationInput;
+        const { searchParams } = new URL(request.url);
 
-        const analysis = await analyzeConversation(body);
+        const inactivityHours = Number(searchParams.get("inactivity_hours") ?? 6);
+        const limit = Number(searchParams.get("limit") ?? 1000);
 
-        await saveConversationAnalysis(analysis);
+        console.log("[/api/analyze] starting pipeline", {
+            inactivity_hours: inactivityHours,
+            limit,
+        });
 
-        const adEvents = deriveAdEventsFromAnalysis(analysis);
+        console.log("[/api/analyze] converting pending messages into conversations");
+
+        const createdConversations = await messageToConversations({
+            inactivityHours,
+            limit,
+        });
+
+        console.log("[/api/analyze] messages converted into conversations", {
+            conversations_created: createdConversations.length,
+        });
+
+        console.log("[/api/analyze] gathering pending conversations to analysis");
+
+        const results = await gatherPendingConversationsToAnalysis({
+            limit,
+        });
+
+        console.log("[/api/analyze] pipeline finished", {
+            conversations_processed: results.length,
+            succeeded: results.filter((item) => item.ok).length,
+            failed: results.filter((item) => !item.ok).length,
+        });
 
         return NextResponse.json({
             ok: true,
-            analysis,
-            ad_events: adEvents,
+            results,
         });
     } catch (error) {
-        console.error(error);
+        console.error("[/api/analyze] pipeline failed", error);
 
         return NextResponse.json(
             {
@@ -30,7 +52,7 @@ export async function POST(request: Request) {
                 error:
                     error instanceof Error
                         ? error.message
-                        : "Failed to analyze conversation",
+                        : "Failed to process analyze pipeline",
             },
             { status: 500 }
         );

@@ -56,7 +56,11 @@ export async function sendMetaEvents({
             event_name: event.meta_event_name,
             event_time: toUnixSeconds(event.occurred_at),
             event_id: `${conversation_id}:${event.type}`,
-            action_source: "business_messaging",
+
+            // Important:
+            // Using "chat" because we only have phone number.
+            // "business_messaging" requires ctwa_clid/page_id/etc.
+            action_source: "chat",
 
             user_data: {
                 ph: [hashedPhone],
@@ -96,6 +100,7 @@ export async function sendMetaEvents({
     return {
         ok: true,
         skipped: false,
+        payload,
         response: json,
     };
 }

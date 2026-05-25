@@ -21,6 +21,83 @@ export async function GET(request: Request) {
         customEndDate,
     });
 
+    const previousDateRange = getPreviousDateRange(dateRange);
+
+    const {
+        analyses,
+        error: currentError,
+    } = await fetchAnalyses({
+        dateRange,
+        unitIds,
+        serviceIds,
+        attendantIds,
+    });
+
+    if (currentError) {
+        return NextResponse.json(
+            { error: currentError.message },
+            { status: 500 }
+        );
+    }
+
+    const {
+        analyses: previousAnalyses,
+        error: previousError,
+    } = await fetchAnalyses({
+        dateRange: previousDateRange,
+        unitIds,
+        serviceIds,
+        attendantIds,
+    });
+
+    if (previousError) {
+        return NextResponse.json(
+            { error: previousError.message },
+            { status: 500 }
+        );
+    }
+
+    const response: ExecutiveDashboardData = {
+        filters: {
+            days,
+            start_date: customStartDate,
+            end_date: customEndDate,
+            unit_ids: unitIds,
+            service_ids: serviceIds,
+            attendant_ids: attendantIds,
+        },
+
+        kpis: buildKpis(analyses),
+        previous_kpis: buildKpis(previousAnalyses),
+
+        daily_evolution: buildDailyEvolution(analyses),
+
+        attendance_score: buildAttendanceScore(analyses),
+
+        dropoff_moments: buildDropoffMoments(analyses),
+
+        conversation_goals: buildConversationGoals(analyses),
+
+        by_unit: buildByUnit(analyses),
+    };
+
+    return NextResponse.json(response);
+}
+
+async function fetchAnalyses({
+                                 dateRange,
+                                 unitIds,
+                                 serviceIds,
+                                 attendantIds,
+                             }: {
+    dateRange: {
+        start: Date;
+        end: Date;
+    };
+    unitIds: string[];
+    serviceIds: string[];
+    attendantIds: string[];
+}) {
     let query = supabase
         .from("conversation_analysis")
         .select(`
@@ -55,37 +132,10 @@ export async function GET(request: Request) {
 
     const { data, error } = await query;
 
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const analyses = data ?? [];
-
-    const response: ExecutiveDashboardData = {
-        filters: {
-            days,
-            start_date: customStartDate,
-            end_date: customEndDate,
-            unit_ids: unitIds,
-            service_ids: serviceIds,
-            attendant_ids: attendantIds,
-        },
-
-        kpis: buildKpis(analyses),
-
-        daily_evolution: buildDailyEvolution(analyses),
-
-        attendance_score: buildAttendanceScore(analyses),
-
-        dropoff_moments: buildDropoffMoments(analyses),
-
-        conversation_goals: buildConversationGoals(analyses),
-
-        by_unit: buildByUnit(analyses),
-
+    return {
+        analyses: data ?? [],
+        error,
     };
-
-    return NextResponse.json(response);
 }
 
 function buildKpis(analyses: any[]) {
@@ -112,7 +162,6 @@ function buildKpis(analyses: any[]) {
             item.customer_final_state
         )
     ).length;
-
 
     return {
         conversations_analyzed: total,
@@ -286,7 +335,6 @@ function buildByUnit(analyses: any[]) {
     }));
 }
 
-
 function percentage(value: number, total: number): number {
     if (total === 0) return 0;
     return Math.round((value / total) * 100);
@@ -398,4 +446,16 @@ function getDateRange({
     start.setDate(start.getDate() - days);
 
     return { start, end };
+}
+
+function getPreviousDateRange(dateRange: { start: Date; end: Date }) {
+    const durationMs = dateRange.end.getTime() - dateRange.start.getTime();
+
+    const previousEnd = new Date(dateRange.start);
+    const previousStart = new Date(dateRange.start.getTime() - durationMs);
+
+    return {
+        start: previousStart,
+        end: previousEnd,
+    };
 }

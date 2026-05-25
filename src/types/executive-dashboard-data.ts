@@ -56,5 +56,11 @@ export type ExecutiveDashboardData = {
         satisfaction_rate: number;
         scheduling_rate: number;
     }[];
-
+    previous_kpis: {
+        conversations_analyzed: number;
+        real_resolution_rate: number;
+        clear_satisfaction_rate: number;
+        scheduling_rate: number;
+        average_first_human_response_seconds: number | null;
+    };
 };

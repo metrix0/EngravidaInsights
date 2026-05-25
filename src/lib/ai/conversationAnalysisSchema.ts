@@ -135,7 +135,7 @@ export const conversationAnalysisSchema = z.object({
     }),
 
     resolution: z.object({
-        resolved: z.union([z.boolean(), z.literal("partial")]),
+        resolved: z.enum(["true", "false", "partial"]),
         resolution_score: z.number().int().min(0).max(100),
         reasoning_category: z.enum([
             "customer_got_answer",
@@ -152,7 +152,3 @@ export const conversationAnalysisSchema = z.object({
     notable: z.boolean(),
     notable_reason: z.string().nullable(),
 });
-
-export type ConversationAnalysisOutput = z.infer<
-    typeof conversationAnalysisSchema
->;

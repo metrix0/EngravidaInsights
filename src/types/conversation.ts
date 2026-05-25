@@ -21,6 +21,8 @@ export type Conversation = {
 
     service_id: string | null;
 
+    conversation_analysis_id: string | null;
+
     created_at: string;
     updated_at: string;
 };
