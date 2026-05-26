@@ -4,16 +4,16 @@
     --color-brand: #ef4444;
     --color-brand-soft: #fce8e8;
 
-    --color-green: #10b981;
+    --color-green: #0fbb73;
     --color-green-soft: #e6fdef;
 
-    --color-red: #c61010;
-    --color-red-soft: #feecec;
+    --color-red: #e43535;
+    --color-red-soft: #fde9e9;
 
     --color-blue: #1683ff;
     --color-blue-soft: #e5f1ff;
 
-    --color-orange: #f97316;
+    --color-orange: #e29229;
     --color-orange-soft: #fff2e3;
 
     --color-purple: #8b5cf6;
@@ -24,6 +24,9 @@
     --color-background: #f8fafc;
     --color-text: #0f172a;
     --color-muted: #64748b;
+
+    --color-selection: #eaeaea;
+
 
     --font-inter: "Inter", sans-serif;
 }

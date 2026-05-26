@@ -3,7 +3,8 @@ import path from "path";
 
 const root = process.cwd();
 
-const uiDir = path.join(root, "src", "components", "ui");
+const componentsDir = path.join(root, "src", "components");
+
 const outputFile = path.join(
     root,
     "src",
@@ -13,27 +14,83 @@ const outputFile = path.join(
     "uiRegistry.generated.tsx"
 );
 
-const ignoredFiles = new Set(["index.ts"]);
+const ignoredFiles = new Set(["index.ts", "index.tsx"]);
+const ignoredDirs = new Set(["node_modules"]);
 
-const files = fs
-    .readdirSync(uiDir)
-    .filter((file) => file.endsWith(".tsx"))
-    .filter((file) => !ignoredFiles.has(file))
-    .sort();
+function sortDirs(dirs) {
+    return dirs.sort((a, b) => {
+        if (a === "ui") return -1;
+        if (b === "ui") return 1;
+        return a.localeCompare(b);
+    });
+}
+
+function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    const dirs = sortDirs(
+        entries
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name)
+            .filter((name) => !ignoredDirs.has(name))
+    );
+
+    const files = entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .filter((file) => file.endsWith(".tsx"))
+        .filter((file) => !ignoredFiles.has(file))
+        .sort();
+
+    const result = [];
+
+    for (const file of files) {
+        const filePath = path.join(dir, file);
+
+        const source = fs.readFileSync(filePath, "utf8");
+
+        if (!source.includes("export const __uiDemo")) {
+            continue;
+        }
+
+        const relativePath = path.relative(componentsDir, filePath);
+        const withoutExtension = relativePath.replace(/\.tsx$/, "");
+
+        const importPath = `@/components/${withoutExtension.replaceAll(path.sep, "/")}`;
+
+        const componentName = withoutExtension.replaceAll(path.sep, "/");
+
+        result.push({
+            filePath,
+            importPath,
+            componentName,
+        });
+    }
+
+    for (const folder of dirs) {
+        result.push(...walk(path.join(dir, folder)));
+    }
+
+    return result;
+}
+
+const files = walk(componentsDir);
 
 const imports = [];
 const registryItems = [];
 
 for (const file of files) {
-    const componentName = file.replace(".tsx", "");
-    const importName = `${componentName}Demo`;
+    const importName =
+        file.componentName
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .replace(/^(\d)/, "_$1") + "Demo";
 
     imports.push(
-        `import { __uiDemo as ${importName} } from "@/components/ui/${componentName}";`
+        `import { __uiDemo as ${importName} } from "${file.importPath}";`
     );
 
     registryItems.push(`  {
-    name: "${componentName}",
+    name: "${file.componentName}",
     ...${importName},
   },`);
 }
@@ -51,4 +108,4 @@ ${registryItems.join("\n")}
 
 fs.writeFileSync(outputFile, content);
 
-console.log(`Generated UI registry with \${files.length} components.`);
+console.log(`Generated UI registry with ${files.length} components.`);

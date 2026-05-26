@@ -1,5 +1,9 @@
 // src/lib/ads/deriveAdEventsFromAnalysis.ts
 import type { ConversationAnalysis, OutcomeEventType } from "@/types";
+import {
+    QUALIFIED_LEAD_OUTCOME_EVENTS,
+    SCHEDULE_OUTCOME_EVENTS,
+} from "@/lib/ads/adEventRules";
 
 export type DerivedAdEvent = {
     type: "lead" | "schedule";
@@ -24,12 +28,7 @@ export function deriveAdEventsFromAnalysis(
             meta_event_name: "Lead",
             google_conversion_name: "qualified_lead",
             occurred_at:
-                getEventTime(analysis, [
-                    "consultation_offered",
-                    "information_answered",
-                    "price_presented",
-                    "handoff_to_unit",
-                ]) ?? analysis.started_at,
+                getEventTime(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS) ?? analysis.started_at,
             confidence: getLeadConfidence(analysis),
         });
     }
@@ -40,15 +39,9 @@ export function deriveAdEventsFromAnalysis(
             meta_event_name: "Schedule",
             google_conversion_name: "book_appointment",
             occurred_at:
-                getEventTime(analysis, [
-                    "appointment_scheduled",
-                    "appointment_rescheduled",
-                ]) ?? analysis.ended_at,
+                getEventTime(analysis, SCHEDULE_OUTCOME_EVENTS) ?? analysis.ended_at,
             confidence:
-                getEventConfidence(analysis, [
-                    "appointment_scheduled",
-                    "appointment_rescheduled",
-                ]) ?? 0.95,
+                getEventConfidence(analysis, SCHEDULE_OUTCOME_EVENTS) ?? 0.95,
         });
     }
 
@@ -75,12 +68,7 @@ function isQualifiedLead(analysis: ConversationAnalysis): boolean {
         analysis.goal_status === "achieved" ||
         analysis.goal_status === "partially_achieved" ||
         analysis.resolution.resolution_score >= 60 ||
-        hasAnyEvent(analysis, [
-            "consultation_offered",
-            "price_presented",
-            "handoff_to_unit",
-            "information_answered",
-        ])
+        hasAnyEvent(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS)
     );
 }
 
@@ -89,10 +77,7 @@ function isScheduled(analysis: ConversationAnalysis): boolean {
         analysis.customer_final_state === "scheduled" ||
         analysis.customer_final_state === "rescheduled" ||
         analysis.resolution.reasoning_category === "customer_scheduled" ||
-        hasAnyEvent(analysis, [
-            "appointment_scheduled",
-            "appointment_rescheduled",
-        ])
+        hasAnyEvent(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS)
     );
 }
 
