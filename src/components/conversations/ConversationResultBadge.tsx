@@ -1,4 +1,4 @@
-// src/components/conversations/ResultBadge.tsx
+// src/components/conversations/ConversationResultBadge.tsx
 
 export type ConversationResult =
     | "resolvida"
@@ -31,7 +31,7 @@ const resultConfig: Record<
     },
 };
 
-export function ResultBadge({
+export function ConversationResultBadge({
                                             result,
                                         }: {
     result: ConversationResult;
@@ -40,7 +40,7 @@ export function ResultBadge({
 
     return (
         <span
-            className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${config.className}`}
+            className={`inline-flex rounded-md px-2.5 py-1 text-xs whitespace-nowrap font-bold ${config.className}`}
         >
             {config.label}
         </span>
@@ -50,10 +50,10 @@ export function ResultBadge({
 export const __uiDemo = {
     element: (
         <div className="flex items-center gap-3">
-            <ResultBadge result="resolvida" />
-            <ResultBadge result="parcial" />
-            <ResultBadge result="nao_resolvida" />
-            <ResultBadge result="pendente" />
+            <ConversationResultBadge result="resolvida" />
+            <ConversationResultBadge result="parcial" />
+            <ConversationResultBadge result="nao_resolvida" />
+            <ConversationResultBadge result="pendente" />
         </div>
     ),
     code: `<div className="flex items-center gap-3">

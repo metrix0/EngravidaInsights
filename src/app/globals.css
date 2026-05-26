@@ -35,7 +35,7 @@
 html,
 body {
     min-height: 100%; margin:0;
-    background: var(--background);
+    background: var(--color-background);
     color: var(--color-text);
     font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
@@ -51,7 +51,6 @@ textarea {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
     outline: 2px solid var(--color-brand);

@@ -2,6 +2,7 @@
 // Do not edit manually.
 // Run: npm run ui:generate
 
+import { __uiDemo as ui_AdvancedFilterButtonDemo } from "@/components/ui/AdvancedFilterButton";
 import { __uiDemo as ui_ButtonGroupDemo } from "@/components/ui/ButtonGroup";
 import { __uiDemo as ui_CalendarButtonDemo } from "@/components/ui/CalendarButton";
 import { __uiDemo as ui_CardDemo } from "@/components/ui/Card";
@@ -12,12 +13,16 @@ import { __uiDemo as ui_KpiCardDemo } from "@/components/ui/KpiCard";
 import { __uiDemo as ui_PercentageBarDemo } from "@/components/ui/PercentageBar";
 import { __uiDemo as ui_PercentageValueDemo } from "@/components/ui/PercentageValue";
 import { __uiDemo as ui_SkeletonDemo } from "@/components/ui/Skeleton";
+import { __uiDemo as conversations_ConversationResultBadgeDemo } from "@/components/conversations/ConversationResultBadge";
 import { __uiDemo as conversations_InitialsAvatarDemo } from "@/components/conversations/InitialsAvatar";
-import { __uiDemo as conversations_ResultBadgeDemo } from "@/components/conversations/ResultBadge";
 import { __uiDemo as conversations_SearchFilterDemo } from "@/components/conversations/SearchFilter";
 import { __uiDemo as conversations_StatusBadgeDemo } from "@/components/conversations/StatusBadge";
 
 export const uiRegistry = [
+  {
+    name: "ui/AdvancedFilterButton",
+    ...ui_AdvancedFilterButtonDemo,
+  },
   {
     name: "ui/ButtonGroup",
     ...ui_ButtonGroupDemo,
@@ -59,12 +64,12 @@ export const uiRegistry = [
     ...ui_SkeletonDemo,
   },
   {
-    name: "conversations/InitialsAvatar",
-    ...conversations_InitialsAvatarDemo,
+    name: "conversations/ConversationResultBadge",
+    ...conversations_ConversationResultBadgeDemo,
   },
   {
-    name: "conversations/ResultBadge",
-    ...conversations_ResultBadgeDemo,
+    name: "conversations/InitialsAvatar",
+    ...conversations_InitialsAvatarDemo,
   },
   {
     name: "conversations/SearchFilter",

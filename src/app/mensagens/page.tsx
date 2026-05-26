@@ -7,7 +7,6 @@ import {
     ChevronLeft,
     ChevronRight,
     MapPin,
-    SlidersHorizontal,
     User,
     CircleAlert,
 } from "lucide-react";
@@ -25,10 +24,11 @@ import {
 
 import { InitialsAvatar } from "@/components/conversations/InitialsAvatar";
 import {
-    ResultBadge,
+    ConversationResultBadge,
     type ConversationResult,
-} from "@/components/conversations/ResultBadge";
+} from "@/components/conversations/ConversationResultBadge";
 import { SearchFilter } from "@/components/conversations/SearchFilter";
+import AdvancedFilterButton from "@/components/ui/AdvancedFilterButton";
 
 type Period = "7" | "30" | "90";
 
@@ -67,6 +67,10 @@ export default function MessagesPage() {
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
 
+    const [goalValues, setGoalValues] = useState<string[]>([]);
+    const [resultValues, setResultValues] = useState<string[]>([]);
+    const [notableValues, setNotableValues] = useState<string[]>([]);
+
     const [period, setPeriod] = useState<Period | null>("7");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
@@ -104,7 +108,17 @@ export default function MessagesPage() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [period, selectedRange, search, unitIds, attendantIds, serviceIds]);
+    }, [
+        period,
+        selectedRange,
+        search,
+        unitIds,
+        attendantIds,
+        serviceIds,
+        goalValues,
+        resultValues,
+        notableValues,
+    ]);
 
     useEffect(() => {
         async function loadConversations() {
@@ -138,6 +152,18 @@ export default function MessagesPage() {
                 params.set("service_ids", serviceIds.join(","));
             }
 
+            if (goalValues.length > 0) {
+                params.set("conversation_goals", goalValues.join(","));
+            }
+
+            if (resultValues.length > 0) {
+                params.set("results", resultValues.join(","));
+            }
+
+            if (notableValues.length > 0) {
+                params.set("notable", notableValues[0]);
+            }
+
             try {
                 const response = await fetch(
                     `/api/dashboard/mensagens?${params.toString()}`
@@ -160,6 +186,9 @@ export default function MessagesPage() {
         unitIds,
         attendantIds,
         serviceIds,
+        goalValues,
+        resultValues,
+        notableValues,
     ]);
 
     const totalPages = Math.max(1, Math.ceil(totalConversations / PAGE_SIZE));
@@ -230,13 +259,48 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <SearchFilter value={search} onChange={setSearch} />
 
-                        <button
-                            type="button"
-                            className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
-                        >
-                            <SlidersHorizontal size={16} />
-                            Mais filtros
-                        </button>
+                        <AdvancedFilterButton
+                            sections={[
+                                {
+                                    id: "goal",
+                                    title: "Objetivo",
+                                    values: goalValues,
+                                    onChange: setGoalValues,
+                                    options: [
+                                        { label: "Informação", value: "answer_information" },
+                                        { label: "Agendar consulta", value: "schedule_consultation" },
+                                        { label: "Reagendar", value: "reschedule_consultation" },
+                                        { label: "Confirmar presença", value: "confirm_attendance" },
+                                        { label: "Explicar tratamento", value: "explain_treatment" },
+                                        { label: "Objeção de preço", value: "handle_price_objection" },
+                                        { label: "Outro", value: "other" },
+                                    ],
+                                },
+                                {
+                                    id: "result",
+                                    title: "Resultado",
+                                    values: resultValues,
+                                    onChange: setResultValues,
+                                    options: [
+                                        { label: "Resolvida", value: "resolvida" },
+                                        { label: "Parcial", value: "parcial" },
+                                        { label: "Não resolvida", value: "nao_resolvida" },
+                                        { label: "Pendente", value: "pendente" },
+                                    ],
+                                },
+                                {
+                                    id: "notable",
+                                    title: "Notável",
+                                    values: notableValues,
+                                    onChange: setNotableValues,
+                                    multi: false,
+                                    options: [
+                                        { label: "Notáveis", value: "true" },
+                                        { label: "Não notáveis", value: "false" },
+                                    ],
+                                },
+                            ]}
+                        />
                     </div>
                 </div>
 
@@ -269,6 +333,7 @@ export default function MessagesPage() {
                     </button>
                 </div>
             </section>
+
             <ConversationPanel
                 conversationId={selectedConversationId}
                 onClose={() => setSelectedConversationId(null)}
@@ -357,7 +422,8 @@ function ConversationTable({
                     key={conversation.id}
                     type="button"
                     onClick={() => onSelectConversation(conversation.id)}
-                    className="group grid w-full cursor-pointer grid-cols-[1.35fr_1fr_1.85fr_1.35fr_1.35fr_1fr_48px_48px] items-center border-b border-slate-100 px-6 py-4 text-left text-sm transition-colors hover:bg-selection/80"                >
+                    className="group grid w-full cursor-pointer grid-cols-[1.35fr_1fr_1.85fr_1.35fr_1.35fr_1fr_48px_48px] items-center border-b border-slate-100 px-6 py-4 text-left text-sm transition-colors hover:bg-selection/80"
+                >
                     <div className="flex min-w-0 items-center gap-3">
                         <InitialsAvatar name={conversation.attendant_name} />
 
@@ -365,8 +431,8 @@ function ConversationTable({
                             title={conversation.attendant_name}
                             className="truncate font-medium text-slate-700"
                         >
-        {conversation.attendant_name}
-    </span>
+                            {conversation.attendant_name}
+                        </span>
                     </div>
 
                     <div
@@ -396,7 +462,7 @@ function ConversationTable({
                     </div>
 
                     <div>
-                        <ResultBadge result={conversation.result} />
+                        <ConversationResultBadge result={conversation.result} />
                     </div>
 
                     <div>
@@ -429,10 +495,7 @@ function DateRangeCell({
     const label = formatConversationDateRange(start, end);
 
     return (
-        <div
-            title={label}
-            className="truncate text-slate-600"
-        >
+        <div title={label} className="truncate text-slate-600">
             {label}
         </div>
     );
@@ -562,6 +625,7 @@ function getPaginationPages(
 
     return [1, "...", currentPage, "...", totalPages];
 }
+
 function MessagesSkeleton() {
     return (
         <>

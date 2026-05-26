@@ -109,10 +109,8 @@ export default function FilterButton({
             <button
                 type="button"
                 onClick={() => setOpen((current) => !current)}
-                className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-                style={{
-                    backgroundColor: "var(--color-card)",
-                    borderColor: "var(--color-border)",
+                className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-sm transition hover:bg-selection focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                style={{borderColor: "var(--color-border)",
                     color: "var(--color-muted)",
                 }}
             >

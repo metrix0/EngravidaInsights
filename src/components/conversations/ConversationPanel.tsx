@@ -10,7 +10,7 @@ import {
     Target,
     Phone,
     User,
-    X,
+    X, CircleAlert,
 } from "lucide-react";
 import { FaGoogle, FaMeta } from "react-icons/fa6";
 
@@ -19,7 +19,7 @@ import {
     type AdPlatformTag, QUALIFIED_LEAD_OUTCOME_EVENTS, SCHEDULE_OUTCOME_EVENTS,
 } from "@/lib/ads/adEventRules";
 import { InitialsAvatar } from "@/components/conversations/InitialsAvatar";
-import { ResultBadge, type ConversationResult } from "@/components/conversations/ResultBadge";
+import { ConversationResultBadge, type ConversationResult } from "@/components/conversations/ConversationResultBadge";
 import { Skeleton } from "@/components";
 
 type SenderType = "client" | "attendant" | "bot" | "system";
@@ -171,7 +171,7 @@ export function ConversationPanel({
                                         </div>
                                     </div>
 
-                                    <span title={`Resolução ${result}`}><ResultBadge result={result} /></span>
+                                    <span title={`Resolução ${result}`}><ConversationResultBadge result={result} /></span>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-4 text-xs">
@@ -352,6 +352,18 @@ function AnalysisTab({ analysis }: { analysis: any | null }) {
                     ]}
                 />
             </SummaryCard>
+
+            {analysis.notable && (
+                <SummaryCard title={null}>
+                    <div className="mb-2 flex items-center gap-2 font-bold text-amber-800 ">
+                        <CircleAlert className="h-4 w-4" />Conversa notável
+                    </div>
+
+                    <p className="text-sm leading-relaxed text-amber-800/80">
+                        {analysis.notable_reason ?? "Motivo não descrito."}
+                    </p>
+                </SummaryCard>
+            )}
 
             <SummaryCard title="Intenção inicial">
                 <p className="text-sm leading-relaxed text-slate-600">
@@ -556,12 +568,12 @@ function SummaryCard({
                          title,
                          children,
                      }: {
-    title: string;
+    title: string | null;
     children: React.ReactNode;
 }) {
     return (
         <div className="rounded-xl border border-slate-100 p-4">
-            <h3 className="mb-4 font-bold text-slate-900">{title}</h3>
+            {title && <h3 className="mb-4 font-bold text-slate-900">{title}</h3>}
             {children}
         </div>
     );

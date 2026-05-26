@@ -20,6 +20,10 @@ export async function GET(request: Request) {
     const serviceIds = parseIds(searchParams.get("service_ids"));
     const attendantIds = parseIds(searchParams.get("attendant_ids"));
 
+    const conversationGoals = parseIds(searchParams.get("conversation_goals"));
+    const results = parseIds(searchParams.get("results"));
+    const notable = searchParams.get("notable");
+
     const dateRange = getDateRange({
         days,
         customStartDate,
@@ -125,6 +129,9 @@ export async function GET(request: Request) {
         const attendantName =
             conversation.attendant_chat_name ?? "Sem atendente";
 
+        const result = getConversationResult(analysis?.resolution_result);
+        const isNotable = Boolean(analysis?.notable);
+
         return {
             id: conversation.id,
 
@@ -138,29 +145,59 @@ export async function GET(request: Request) {
                 ? getGoalLabel(analysis.conversation_goal)
                 : "Sem análise",
 
-            result: getConversationResult(analysis?.resolution_result),
-            notable: Boolean(analysis?.notable),
+            result,
+            notable: isNotable,
+
+            _conversation_goal: analysis?.conversation_goal ?? null,
+            _result: result,
+            _notable: isNotable,
         };
     });
 
-    const filteredRows = search
-        ? rows.filter((row) => {
-            return (
+    const filteredRows = rows.filter((row) => {
+        if (search) {
+            const matchesSearch =
                 row.attendant_name.toLowerCase().includes(search) ||
                 row.phone.toLowerCase().includes(search) ||
                 row.client_name.toLowerCase().includes(search) ||
-                row.objective.toLowerCase().includes(search)
-            );
-        })
-        : rows;
+                row.objective.toLowerCase().includes(search);
+
+            if (!matchesSearch) return false;
+        }
+
+        if (
+            conversationGoals.length > 0 &&
+            !conversationGoals.includes(row._conversation_goal ?? "")
+        ) {
+            return false;
+        }
+
+        if (results.length > 0 && !results.includes(row._result)) {
+            return false;
+        }
+
+        if (notable === "true" && !row._notable) {
+            return false;
+        }
+
+        if (notable === "false" && row._notable) {
+            return false;
+        }
+
+        return true;
+    });
 
     const total = filteredRows.length;
 
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
 
+    const cleanRows = filteredRows.map(
+        ({ _conversation_goal, _result, _notable, ...row }) => row
+    );
+
     return NextResponse.json({
-        items: filteredRows.slice(startIndex, endIndex),
+        items: cleanRows.slice(startIndex, endIndex),
         total,
         page,
         page_size: pageSize,

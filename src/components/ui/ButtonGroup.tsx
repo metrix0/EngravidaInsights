@@ -56,10 +56,10 @@ export default function ButtonGroup<T extends string>({
                         key={option.value}
                         type="button"
                         onClick={() => handleChange(option.value)}
-                        className={`cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-300 ${
+                        className={`cursor-pointer rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                             active
                                 ? "bg-brand text-white"
-                                : "text-muted hover:bg-slate-50"
+                                : "text-muted hover:bg-selection"
                         }`}
                     >
                         {option.content ?? option.label}
