@@ -77,7 +77,7 @@ function isScheduled(analysis: ConversationAnalysis): boolean {
         analysis.customer_final_state === "scheduled" ||
         analysis.customer_final_state === "rescheduled" ||
         analysis.resolution.reasoning_category === "customer_scheduled" ||
-        hasAnyEvent(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS)
+        hasAnyEvent(analysis, SCHEDULE_OUTCOME_EVENTS)
     );
 }
 

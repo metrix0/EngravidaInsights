@@ -138,7 +138,7 @@ async function createPendingMetaAdEvents({
                 event_type: event.type,
                 platform: "Meta Ads",
                 status: "pending",
-                event_date: event.occurred_at,
+                event_date: new Date().toISOString(),
             }))
         )
         .select("id");
