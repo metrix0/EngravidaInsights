@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/scripts/test-derive-ad-events.ts
+/scripts/test-save-analysis.ts
