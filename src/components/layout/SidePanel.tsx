@@ -32,9 +32,9 @@ const defaultItems: SidePanelItem[] = [
     { label: "Mensagens", href: "/mensagens", icon: <MessageCircle size={18} /> },
     { label: "Jornada", href: "/jornada", icon: <ShieldCheck size={18} /> },
     { label: "Eventos", href: "/eventos", icon: <Megaphone size={18} /> },
-    { label: "Atendentes", href: "/atendentes", icon: <Users size={18} /> },
-    { label: "Relatórios", href: "/relatorios", icon: <FileText size={18} /> },
-    { label: "Configurações", href: "/configuracoes", icon: <Settings size={18} /> },
+    // { label: "Atendentes", href: "/atendentes", icon: <Users size={18} /> },
+    // { label: "Relatórios", href: "/relatorios", icon: <FileText size={18} /> },
+    // { label: "Configurações", href: "/configuracoes", icon: <Settings size={18} /> },
 ];
 
 export default function SidePanel({ items = defaultItems }: SidePanelProps) {
@@ -77,11 +77,9 @@ export default function SidePanel({ items = defaultItems }: SidePanelProps) {
             >
                 <img src="/logo.png" className="h-6" alt="Engravida" />
 
-                <div className="text-2xl font-semibold tracking-tight">
-                    <span className="text-base font-normal text-amber-700">
-                        Insights
-                    </span>
-                </div>
+                <span className="text-[1.1rem] font-normal text-amber-700 pt-[2px]">
+                    Insights
+                </span>
             </Link>
 
             <nav className="space-y-2">

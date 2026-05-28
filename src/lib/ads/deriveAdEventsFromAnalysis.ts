@@ -28,8 +28,11 @@ export function deriveAdEventsFromAnalysis(
             meta_event_name: "Lead",
             google_conversion_name: "qualified_lead",
             occurred_at:
-                getEventTime(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS) ?? analysis.started_at,
-            confidence: getLeadConfidence(analysis),
+                getEventTime(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS) ??
+                analysis.started_at,
+            confidence:
+                getEventConfidence(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS) ??
+                0.9,
         });
     }
 
@@ -39,9 +42,11 @@ export function deriveAdEventsFromAnalysis(
             meta_event_name: "Schedule",
             google_conversion_name: "book_appointment",
             occurred_at:
-                getEventTime(analysis, SCHEDULE_OUTCOME_EVENTS) ?? analysis.ended_at,
+                getEventTime(analysis, SCHEDULE_OUTCOME_EVENTS) ??
+                analysis.ended_at,
             confidence:
-                getEventConfidence(analysis, SCHEDULE_OUTCOME_EVENTS) ?? 0.95,
+                getEventConfidence(analysis, SCHEDULE_OUTCOME_EVENTS) ??
+                0.95,
         });
     }
 
@@ -56,20 +61,15 @@ function isBadLead(analysis: ConversationAnalysis): boolean {
 }
 
 function isQualifiedLead(analysis: ConversationAnalysis): boolean {
+    if (analysis.dropoff.happened) {
+        return false;
+    }
+
     if (analysis.resolution.reasoning_category === "customer_abandoned") {
         return false;
     }
 
-    if (analysis.dropoff.happened && analysis.dropoff.moment === "after_price") {
-        return false;
-    }
-
-    return (
-        analysis.goal_status === "achieved" ||
-        analysis.goal_status === "partially_achieved" ||
-        analysis.resolution.resolution_score >= 60 ||
-        hasAnyEvent(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS)
-    );
+    return hasAnyEvent(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS);
 }
 
 function isScheduled(analysis: ConversationAnalysis): boolean {
@@ -110,13 +110,4 @@ function getEventConfidence(
             eventTypes.includes(event.type)
         )?.confidence ?? null
     );
-}
-
-function getLeadConfidence(analysis: ConversationAnalysis): number {
-    if (analysis.goal_status === "achieved") return 0.9;
-    if (analysis.goal_status === "partially_achieved") return 0.8;
-    if (analysis.resolution.resolution_score >= 75) return 0.85;
-    if (analysis.resolution.resolution_score >= 60) return 0.75;
-
-    return 0.65;
 }
