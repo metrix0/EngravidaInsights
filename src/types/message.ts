@@ -15,5 +15,13 @@ export type Message = {
     sent_at: string;
     sequence_index: number;
 
+    external_id: string | null; // WhatsApp message id, body.id
+
+    external_contact_id: string | null; // 1231233213120402@wa.gw.msging.net DO NOT ASSUME PHONE!
+    external_thread_id: string | null; // wa.bsuid
+    external_attendant_id: string | null;
+    interactive_option_id: string | null; // list/button selected id
+
+
     created_at: string;
 };

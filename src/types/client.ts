@@ -1,16 +1,12 @@
 // src/types/client.ts
+
 export type Client = {
     id: string;
 
     name: string | null;
-    phone: string;
-    email: string | null;
+    phone: string | null;
 
-    external_ids: {
-        blip_contact_id?: string;
-        whatsapp_id?: string;
-        crm_id?: string;
-    };
+    external_contact_id: string | null; // 1231233213120402@wa.gw.msging.net DO NOT ASSUME PHONE!
 
     created_at: string;
     updated_at: string;

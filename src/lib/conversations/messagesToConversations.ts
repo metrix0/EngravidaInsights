@@ -9,8 +9,7 @@ export async function messageToConversations({
     inactivityHours?: number;
     limit?: number;
 } = {}): Promise<AnalyzeConversationInput[]> {
-    const cutoff = new Date();
-    cutoff.setHours(cutoff.getHours() - inactivityHours);
+    const cutoff = new Date(Date.now() - inactivityHours * 60 * 60 * 1000);
 
     const { data, error } = await supabase
         .from("messages")
@@ -45,7 +44,20 @@ export async function messageToConversations({
     const analysisInputs: AnalyzeConversationInput[] = [];
 
     for (const messages of endedGroups) {
-        const analysisInput = await createConversationAndAttachMessages(messages);
+        const conversationMessages = await removeIgnoredFinalBotMessage(messages);
+
+        if (shouldDeleteInvalidGroup(conversationMessages)) {
+            console.log("[messageToConversations] Deleting group: invalid one-sided/bot-only conversation", {
+                messages_count: conversationMessages.length,
+                client_id: conversationMessages[0]?.client_id,
+                sender_types: Array.from(new Set(conversationMessages.map((message) => message.sender_type))),
+            });
+
+            await deleteMessages(conversationMessages);
+            continue;
+        }
+
+        const analysisInput = await createConversationAndAttachMessages(conversationMessages);
         analysisInputs.push(analysisInput);
     }
 
@@ -167,20 +179,22 @@ async function createConversationAndAttachMessages(
         );
     }
 
-    const { error: updateMessagesError } = await supabase
-        .from("messages")
-        .update({
-            conversation_id: conversation.id,
-        })
-        .in(
-            "id",
-            sortedMessages.map((message) => message.id)
-        );
+    for (let index = 0; index < sortedMessages.length; index++) {
+        const message = sortedMessages[index];
 
-    if (updateMessagesError) {
-        throw new Error(
-            `Failed to attach messages to conversation: ${updateMessagesError.message}`
-        );
+        const { error: updateMessageError } = await supabase
+            .from("messages")
+            .update({
+                conversation_id: conversation.id,
+                sequence_index: index + 1,
+            })
+            .eq("id", message.id);
+
+        if (updateMessageError) {
+            throw new Error(
+                `Failed to attach message to conversation: ${updateMessageError.message}`
+            );
+        }
     }
 
     return {
@@ -219,4 +233,67 @@ function getSenderLabel(message: Message): string {
     if (message.sender_type === "bot") return "Bot";
 
     return "Sistema";
+}
+
+function shouldDeleteInvalidGroup(messages: Message[]): boolean {
+    if (messages.length === 0) return true;
+
+    const hasClient = messages.some(
+        (message) => message.sender_type === "client"
+    );
+
+    const hasAttendant = messages.some(
+        (message) => message.sender_type === "attendant"
+    );
+
+    return !hasClient || !hasAttendant;
+}
+
+async function deleteMessages(messages: Message[]) {
+    const messageIds = messages.map((message) => message.id);
+
+    const { error } = await supabase
+        .from("messages")
+        .delete()
+        .in("id", messageIds);
+
+    if (error) {
+        throw new Error(
+            `Failed to delete only-attendant messages: ${error.message}`
+        );
+    }
+}
+
+async function removeIgnoredFinalBotMessage(messages: Message[]): Promise<Message[]> {
+    const sortedMessages = [...messages].sort(
+        (a, b) =>
+            new Date(a.sent_at).getTime() -
+            new Date(b.sent_at).getTime()
+    );
+
+    const lastMessage = sortedMessages.at(-1);
+
+    if (!lastMessage || lastMessage.sender_type !== "bot") {
+        return sortedMessages;
+    }
+
+    const previousTwoMessages = sortedMessages.slice(-3, -1);
+
+    const hasBotInPreviousTwoMessages = previousTwoMessages.some(
+        (message) => message.sender_type === "bot"
+    );
+
+    if (hasBotInPreviousTwoMessages) {
+        return sortedMessages;
+    }
+
+    console.log("[messageToConversations] Deleting ignored final bot message", {
+        message_id: lastMessage.id,
+        client_id: lastMessage.client_id,
+        text: lastMessage.text,
+    });
+
+    await deleteMessages([lastMessage]);
+
+    return sortedMessages.slice(0, -1);
 }

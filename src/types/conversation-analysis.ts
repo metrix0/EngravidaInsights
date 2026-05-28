@@ -11,6 +11,19 @@ export type ConversationGoal =
     | "post_consultation_followup"
     | "other";
 
+export type CustomerStartIntent =
+    | "answer_information"
+    | "schedule_consultation"
+    | "reschedule_consultation"
+    | "confirm_attendance"
+    | "recover_inactive_lead"
+    | "explain_treatment"
+    | "handle_price_objection"
+    | "collect_documents_or_exams"
+    | "post_consultation_followup"
+    | "asked_to_think"
+    | "other";
+
 export type GoalStatus =
     | "achieved"
     | "partially_achieved"
@@ -103,7 +116,7 @@ export type ConversationAnalysis = {
     unit_id: string | null;
     service_id: string | null;
 
-    customer_start_intent: string;
+    customer_start_intent: CustomerStartIntent;
 
     conversation_goal: ConversationGoal;
     goal_status: GoalStatus;

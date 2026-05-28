@@ -10,10 +10,15 @@ import type { AnalyzeConversationInput, Conversation, Message } from "@/types";
 
 export async function gatherPendingConversationsToAnalysis({
                                                                limit = 1000,
+                                                               conversationIds,
                                                            }: {
     limit?: number;
+    conversationIds?: string[];
 }) {
-    const conversations = await getConversationsWithoutAnalysis(limit);
+    const conversations = await getConversationsWithoutAnalysis({
+        limit,
+        conversationIds,
+    });
 
     console.log("[gatherPendingConversationsToAnalysis] gathered conversations without analysis", {
         conversations_found: conversations.length,
@@ -29,6 +34,29 @@ export async function gatherPendingConversationsToAnalysis({
             });
 
             const messages = await getConversationMessages(conversation.id);
+
+            const missingSenderName = messages.find(
+                (message) => !getSenderLabel(message)
+            );
+
+            if (missingSenderName) {
+                console.log("[gatherPendingConversationsToAnalysis] skipped conversation: missing sender name", {
+                    conversation_id: conversation.id,
+                    message_id: missingSenderName.id,
+                    sender_type: missingSenderName.sender_type,
+                });
+
+                results.push({
+                    ok: false,
+                    skipped: true,
+                    reason: "missing_sender_name",
+                    conversation_id: conversation.id,
+                    client_id: conversation.client_id,
+                    message_id: missingSenderName.id,
+                });
+
+                continue;
+            }
 
             const analysisInput: AnalyzeConversationInput = {
                 conversation_id: conversation.id,
@@ -141,14 +169,30 @@ export async function gatherPendingConversationsToAnalysis({
     return results;
 }
 
-async function getConversationsWithoutAnalysis(limit: number): Promise<Conversation[]> {
-    const { data, error } = await supabase
+async function getConversationsWithoutAnalysis({
+                                                   limit,
+                                                   conversationIds,
+                                               }: {
+    limit: number;
+    conversationIds?: string[];
+}): Promise<Conversation[]> {
+    if (conversationIds && conversationIds.length === 0) {
+        return [];
+    }
+
+    let query = supabase
         .from("conversations")
         .select("*")
         .is("conversation_analysis_id", null)
         .not("ended_at", "is", null)
         .order("ended_at", { ascending: true })
         .limit(limit);
+
+    if (conversationIds) {
+        query = query.in("id", conversationIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         throw new Error(
@@ -224,14 +268,14 @@ function buildConversationText(messages: Message[]): string {
         .join("\n");
 }
 
-function getSenderLabel(message: Message): string {
-    if (message.sender_type === "client") return "Cliente";
+function getSenderLabel(message: Message): string | null {
+    if (message.sender_type === "client") return message.sender_name;
 
-    if (message.sender_type === "attendant") {
-        return message.sender_name ?? "Atendente";
-    }
+    if (message.sender_type === "attendant") return message.sender_name;
 
     if (message.sender_type === "bot") return "Bot";
 
-    return "Sistema";
+    if (message.sender_type === "system") return "Sistema";
+
+    return null;
 }

@@ -12,7 +12,19 @@ export const conversationAnalysisSchema = z.object({
     unit_id: z.string().nullable(),
     service_id: z.string().nullable(),
 
-    customer_start_intent: z.string(),
+    customer_start_intent: z.enum([
+        "answer_information",
+        "schedule_consultation",
+        "reschedule_consultation",
+        "confirm_attendance",
+        "recover_inactive_lead",
+        "explain_treatment",
+        "handle_price_objection",
+        "collect_documents_or_exams",
+        "post_consultation_followup",
+        "asked_to_think",
+        "other",
+    ]),
 
     conversation_goal: z.enum([
         "answer_information",

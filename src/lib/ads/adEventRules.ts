@@ -5,7 +5,6 @@ export type AdPlatformTag = "Meta Ads" | "Google Ads";
 
 export const QUALIFIED_LEAD_OUTCOME_EVENTS: OutcomeEventType[] = [
     "consultation_offered",
-    "information_answered",
     "price_presented",
     "handoff_to_unit",
 ];

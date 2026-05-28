@@ -67,7 +67,16 @@ export async function GET(
     return NextResponse.json({
         conversation,
         client,
-        messages: messages ?? [],
+        messages: (messages ?? []).map((message) => ({
+            ...message,
+            text: cleanMessageText(message.text),
+        })),
         analysis,
     });
+}
+
+function cleanMessageText(text: string) {
+    return text
+        .replace(/<\/?b>/gi, "")
+        .replace(/<\/?strong>/gi, "");
 }

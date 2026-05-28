@@ -1,6 +1,11 @@
 // scripts/test-analyze.mjs
 
-const response = await fetch("http://localhost:3000/api/analyze", {
+const params = new URLSearchParams({
+    inactivity_hours: "3",
+    limit: "9999",
+});
+
+const response = await fetch(`http://localhost:3000/api/analyze?${params.toString()}`, {
     method: "GET",
 });
 

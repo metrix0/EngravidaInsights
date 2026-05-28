@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     let conversationsQuery = supabase
         .from("conversations")
         .select("*")
+        .not("conversation_analysis_id", "is", null)
         .gte("started_at", dateRange.start.toISOString())
         .lte("started_at", dateRange.end.toISOString())
         .order("started_at", { ascending: false })

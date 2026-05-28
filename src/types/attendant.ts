@@ -7,6 +7,9 @@ export type Attendant = {
 
     unit_id: string | null;
 
+    external_attendant_id: string | null; // nome@engravida.com.br@blip.ai
+
+
     active: boolean;
 
     created_at: string;

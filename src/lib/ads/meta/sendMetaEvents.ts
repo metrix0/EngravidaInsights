@@ -1,5 +1,7 @@
 // src/lib/ads/meta/sendMetaEvents.ts
 import crypto from "crypto";
+
+import { supabase } from "@/lib/supabase/client";
 import type { DerivedAdEvent } from "@/lib/ads/deriveAdEventsFromAnalysis";
 
 type SendMetaEventsInput = {
@@ -25,84 +27,146 @@ export async function sendMetaEvents({
         };
     }
 
-    if (!phone) {
-        return {
-            ok: false,
-            skipped: true,
-            reason: "Client has no phone",
-        };
-    }
+    const adEventIds = await createPendingMetaAdEvents({
+        events,
+        conversation_id,
+    });
 
-    if (!metaPixelId) {
-        throw new Error("Missing META_PIXEL_ID");
-    }
+    try {
+        if (!phone) {
+            await updateAdEventsStatus(adEventIds, "failed");
 
-    if (!metaAccessToken) {
-        throw new Error("Missing META_ACCESS_TOKEN");
-    }
-
-    const hashedPhone = hashPhone(phone);
-
-    if (!hashedPhone) {
-        return {
-            ok: false,
-            skipped: true,
-            reason: "Invalid phone",
-        };
-    }
-
-    const payload = {
-        data: events.map((event) => ({
-            event_name: event.meta_event_name,
-            event_time: toUnixSeconds(event.occurred_at),
-            event_id: `${conversation_id}:${event.type}`,
-
-            // Important:
-            // Using "chat" because we only have phone number.
-            // "business_messaging" requires ctwa_clid/page_id/etc.
-            action_source: "chat",
-
-            user_data: {
-                ph: [hashedPhone],
-            },
-
-            custom_data: {
-                internal_event: event.type,
-                conversation_id,
-                confidence: event.confidence,
-            },
-        })),
-
-        ...(metaTestEventCode
-            ? {
-                test_event_code: metaTestEventCode,
-            }
-            : {}),
-    };
-
-    const response = await fetch(
-        `https://graph.facebook.com/v20.0/${metaPixelId}/events?access_token=${metaAccessToken}`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
+            return {
+                ok: false,
+                skipped: true,
+                reason: "Client has no phone",
+            };
         }
-    );
 
-    const json = await response.json();
+        if (!metaPixelId) {
+            await updateAdEventsStatus(adEventIds, "failed");
+            throw new Error("Missing META_PIXEL_ID");
+        }
 
-    if (!response.ok) {
-        throw new Error(`Meta CAPI error: ${JSON.stringify(json)}`);
+        if (!metaAccessToken) {
+            await updateAdEventsStatus(adEventIds, "failed");
+            throw new Error("Missing META_ACCESS_TOKEN");
+        }
+
+        const hashedPhone = hashPhone(phone);
+
+        if (!hashedPhone) {
+            await updateAdEventsStatus(adEventIds, "failed");
+
+            return {
+                ok: false,
+                skipped: true,
+                reason: "Invalid phone",
+            };
+        }
+
+        const payload = {
+            data: events.map((event) => ({
+                event_name: event.meta_event_name,
+                event_time: toUnixSeconds(event.occurred_at),
+                event_id: `${conversation_id}:${event.type}`,
+
+                action_source: "chat",
+
+                user_data: {
+                    ph: [hashedPhone],
+                },
+
+                custom_data: {
+                    internal_event: event.type,
+                    conversation_id,
+                    confidence: event.confidence,
+                },
+            })),
+
+            ...(metaTestEventCode
+                ? {
+                    test_event_code: metaTestEventCode,
+                }
+                : {}),
+        };
+
+        const response = await fetch(
+            `https://graph.facebook.com/v20.0/${metaPixelId}/events?access_token=${metaAccessToken}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            }
+        );
+
+        const json = await response.json();
+
+        if (!response.ok) {
+            await updateAdEventsStatus(adEventIds, "failed");
+            throw new Error(`Meta CAPI error: ${JSON.stringify(json)}`);
+        }
+
+        await updateAdEventsStatus(adEventIds, "sent");
+
+        return {
+            ok: true,
+            skipped: false,
+            payload,
+            response: json,
+        };
+    } catch (error) {
+        await updateAdEventsStatus(adEventIds, "failed");
+        throw error;
+    }
+}
+
+async function createPendingMetaAdEvents({
+                                             events,
+                                             conversation_id,
+                                         }: {
+    events: DerivedAdEvent[];
+    conversation_id: string;
+}) {
+    const { data, error } = await supabase
+        .from("ad_events")
+        .insert(
+            events.map((event) => ({
+                conversation_id,
+                event_type: event.type,
+                platform: "Meta Ads",
+                status: "pending",
+                event_date: event.occurred_at,
+            }))
+        )
+        .select("id");
+
+    if (error) {
+        throw error;
     }
 
-    return {
-        ok: true,
-        skipped: false,
-        payload,
-        response: json,
-    };
+    return (data ?? []).map((item) => item.id as string);
+}
+
+async function updateAdEventsStatus(
+    adEventIds: string[],
+    status: "pending" | "sent" | "failed"
+) {
+    if (adEventIds.length === 0) return;
+
+    const { error } = await supabase
+        .from("ad_events")
+        .update({
+            status,
+            updated_at: new Date().toISOString(),
+        })
+        .in("id", adEventIds);
+
+    if (error) {
+        throw error;
+    }
 }
 
 function hashPhone(phone: string) {

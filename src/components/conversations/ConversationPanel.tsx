@@ -722,6 +722,7 @@ function getGoalLabel(value: string) {
         handle_price_objection: "Objeção de preço",
         collect_documents_or_exams: "Documentos/exames",
         post_consultation_followup: "Pós-consulta",
+        asked_to_think: "Pediu para pensar",
         other: "Outro",
     };
 
