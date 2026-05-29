@@ -114,7 +114,7 @@ export async function gatherPendingConversationsToAnalysis({
             if (adEvents.length > 0) {
                 const { data: client, error: clientError } = await supabase
                     .from("clients")
-                    .select("phone")
+                    .select("phone, email")
                     .eq("id", analysis.client_id)
                     .single();
 
@@ -122,10 +122,11 @@ export async function gatherPendingConversationsToAnalysis({
                     throw clientError;
                 }
 
-                metaResult = await sendMetaEvents({
+                await sendMetaEvents({
                     events: adEvents,
                     phone: client.phone,
-                    conversation_id: analysis.conversation_id,
+                    email: client.email,
+                    conversation_id: conversation.id,
                 });
 
                 console.log("[gatherPendingConversationsToAnalysis] ad events sent to meta", {

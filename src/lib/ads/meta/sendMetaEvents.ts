@@ -7,6 +7,7 @@ import type { DerivedAdEvent } from "@/lib/ads/deriveAdEventsFromAnalysis";
 type SendMetaEventsInput = {
     events: DerivedAdEvent[];
     phone: string | null;
+    email?: string | null;
     conversation_id: string;
 };
 
@@ -17,6 +18,7 @@ const metaTestEventCode = process.env.META_TEST_EVENT_CODE;
 export async function sendMetaEvents({
                                          events,
                                          phone,
+                                         email,
                                          conversation_id,
                                      }: SendMetaEventsInput) {
     if (events.length === 0) {
@@ -33,13 +35,13 @@ export async function sendMetaEvents({
     });
 
     try {
-        if (!phone) {
+        if (!phone && !email) {
             await updateAdEventsStatus(adEventIds, "failed");
 
             return {
                 ok: false,
                 skipped: true,
-                reason: "Client has no phone",
+                reason: "Client has no phone or email",
             };
         }
 
@@ -53,15 +55,16 @@ export async function sendMetaEvents({
             throw new Error("Missing META_ACCESS_TOKEN");
         }
 
-        const hashedPhone = hashPhone(phone);
+        const hashedPhone = phone ? hashPhone(phone) : null;
+        const hashedEmail = email ? hashEmail(email) : null;
 
-        if (!hashedPhone) {
+        if (!hashedPhone && !hashedEmail) {
             await updateAdEventsStatus(adEventIds, "failed");
 
             return {
                 ok: false,
                 skipped: true,
-                reason: "Invalid phone",
+                reason: "Invalid phone and email",
             };
         }
 
@@ -74,7 +77,8 @@ export async function sendMetaEvents({
                 action_source: "chat",
 
                 user_data: {
-                    ph: [hashedPhone],
+                    ...(hashedPhone ? { ph: [hashedPhone] } : {}),
+                    ...(hashedEmail ? { em: [hashedEmail] } : {}),
                 },
 
                 custom_data: {
@@ -138,7 +142,7 @@ async function createPendingMetaAdEvents({
                 event_type: event.type,
                 platform: "Meta Ads",
                 status: "pending",
-                event_date: new Date().toISOString(),
+                event_date: event.occurred_at,
             }))
         )
         .select("id");
@@ -174,7 +178,19 @@ function hashPhone(phone: string) {
 
     if (!normalized) return null;
 
-    return crypto.createHash("sha256").update(normalized).digest("hex");
+    return hash(normalized);
+}
+
+function hashEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+
+    if (!normalized || !normalized.includes("@")) return null;
+
+    return hash(normalized);
+}
+
+function hash(value: string) {
+    return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 function normalizeBrazilPhone(phone: string) {

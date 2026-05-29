@@ -7,7 +7,7 @@ import {
 
 export type DerivedAdEvent = {
     type: "lead" | "schedule";
-    meta_event_name: "Lead" | "Schedule";
+    meta_event_name: "CompleteRegistration" | "Schedule";
     google_conversion_name: "qualified_lead" | "book_appointment";
     occurred_at: string;
     confidence: number;
@@ -25,7 +25,7 @@ export function deriveAdEventsFromAnalysis(
     if (isQualifiedLead(analysis)) {
         events.push({
             type: "lead",
-            meta_event_name: "Lead",
+            meta_event_name: "CompleteRegistration",
             google_conversion_name: "qualified_lead",
             occurred_at:
                 getEventTime(analysis, QUALIFIED_LEAD_OUTCOME_EVENTS) ??
