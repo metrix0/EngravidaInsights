@@ -11,6 +11,29 @@ type SendMetaEventsInput = {
     conversation_id: string;
 };
 
+type ClientTracking = {
+    id: string;
+    external_contact_id: string | null;
+    created_at: string | null;
+
+    fbclid: string | null;
+    fbc: string | null;
+    fbp: string | null;
+    ctwa_clid: string | null;
+
+    gclid: string | null;
+    gbraid: string | null;
+    wbraid: string | null;
+
+    utm_source: string | null;
+    utm_medium: string | null;
+    utm_campaign: string | null;
+    utm_content: string | null;
+    utm_term: string | null;
+
+    tracking_updated_at: string | null;
+};
+
 const metaPixelId = process.env.META_PIXEL_ID;
 const metaAccessToken = process.env.META_ACCESS_TOKEN;
 const metaTestEventCode = process.env.META_TEST_EVENT_CODE;
@@ -55,16 +78,29 @@ export async function sendMetaEvents({
             throw new Error("Missing META_ACCESS_TOKEN");
         }
 
-        const hashedPhone = phone ? hashPhone(phone) : null;
+        const normalizedPhone = phone ? normalizeBrazilPhone(phone) : null;
+
+        const hashedPhone = normalizedPhone ? hash(normalizedPhone) : null;
         const hashedEmail = email ? hashEmail(email) : null;
 
-        if (!hashedPhone && !hashedEmail) {
+        const tracking = await getClientTracking({
+            conversationId: conversation_id,
+            normalizedPhone,
+        });
+
+        const userData = buildUserData({
+            hashedPhone,
+            hashedEmail,
+            tracking,
+        });
+
+        if (Object.keys(userData).length === 0) {
             await updateAdEventsStatus(adEventIds, "failed");
 
             return {
                 ok: false,
                 skipped: true,
-                reason: "Invalid phone and email",
+                reason: "No valid user_data",
             };
         }
 
@@ -76,15 +112,14 @@ export async function sendMetaEvents({
 
                 action_source: "chat",
 
-                user_data: {
-                    ...(hashedPhone ? { ph: [hashedPhone] } : {}),
-                    ...(hashedEmail ? { em: [hashedEmail] } : {}),
-                },
+                user_data: userData,
 
                 custom_data: {
                     internal_event: event.type,
                     conversation_id,
                     confidence: event.confidence,
+
+                    ...buildTrackingCustomData(tracking),
                 },
             })),
 
@@ -125,6 +160,134 @@ export async function sendMetaEvents({
         await updateAdEventsStatus(adEventIds, "failed");
         throw error;
     }
+}
+
+async function getClientTracking({
+                                     conversationId,
+                                     normalizedPhone,
+                                 }: {
+    conversationId: string;
+    normalizedPhone: string | null;
+}): Promise<ClientTracking | null> {
+    const { data: conversation } = await supabase
+        .from("conversations")
+        .select("client_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+    if (conversation?.client_id) {
+        const { data } = await supabase
+            .from("clients")
+            .select(
+                `
+                id,
+                external_contact_id,
+                created_at,
+                fbclid,
+                fbc,
+                fbp,
+                ctwa_clid,
+                gclid,
+                gbraid,
+                wbraid,
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                utm_content,
+                utm_term,
+                tracking_updated_at
+            `
+            )
+            .eq("id", conversation.client_id)
+            .maybeSingle();
+
+        return (data ?? null) as ClientTracking | null;
+    }
+
+    if (!normalizedPhone) return null;
+
+    const { data } = await supabase
+        .from("clients")
+        .select(
+            `
+            id,
+            external_contact_id,
+            created_at,
+            fbclid,
+            fbc,
+            fbp,
+            ctwa_clid,
+            gclid,
+            gbraid,
+            wbraid,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            utm_content,
+            utm_term,
+            tracking_updated_at
+        `
+        )
+        .or(
+            [
+                `phone.eq.${normalizedPhone}`,
+                `phone.eq.+${normalizedPhone}`,
+                `phone.eq.${stripBrazilPrefix(normalizedPhone)}`,
+            ].join(",")
+        )
+        .maybeSingle();
+
+    return (data ?? null) as ClientTracking | null;
+}
+
+function buildUserData({
+                           hashedPhone,
+                           hashedEmail,
+                           tracking,
+                       }: {
+    hashedPhone: string | null;
+    hashedEmail: string | null;
+    tracking: ClientTracking | null;
+}) {
+    const externalId = tracking
+        ? tracking.external_contact_id ?? tracking.id
+        : null;
+
+    const fbc =
+        tracking?.fbc ??
+        buildFbcFromFbclid(
+            tracking?.fbclid ?? null,
+            tracking?.tracking_updated_at ?? tracking?.created_at ?? null
+        );
+
+    return removeNullValues({
+        ...(hashedPhone ? { ph: [hashedPhone] } : {}),
+        ...(hashedEmail ? { em: [hashedEmail] } : {}),
+
+        ...(externalId ? { external_id: [hash(externalId)] } : {}),
+
+        ...(fbc ? { fbc } : {}),
+        ...(tracking?.fbp ? { fbp: tracking.fbp } : {}),
+        ...(tracking?.ctwa_clid ? { ctwa_clid: tracking.ctwa_clid } : {}),
+    });
+}
+
+function buildTrackingCustomData(tracking: ClientTracking | null) {
+    if (!tracking) return {};
+
+    return removeNullValues({
+        fbclid: tracking.fbclid,
+
+        gclid: tracking.gclid,
+        gbraid: tracking.gbraid,
+        wbraid: tracking.wbraid,
+
+        utm_source: tracking.utm_source,
+        utm_medium: tracking.utm_medium,
+        utm_campaign: tracking.utm_campaign,
+        utm_content: tracking.utm_content,
+        utm_term: tracking.utm_term,
+    });
 }
 
 async function createPendingMetaAdEvents({
@@ -173,14 +336,6 @@ async function updateAdEventsStatus(
     }
 }
 
-function hashPhone(phone: string) {
-    const normalized = normalizeBrazilPhone(phone);
-
-    if (!normalized) return null;
-
-    return hash(normalized);
-}
-
 function hashEmail(email: string) {
     const normalized = email.trim().toLowerCase();
 
@@ -207,6 +362,38 @@ function normalizeBrazilPhone(phone: string) {
     }
 
     return digits;
+}
+
+function stripBrazilPrefix(phone: string) {
+    if (phone.startsWith("55")) {
+        return phone.slice(2);
+    }
+
+    return phone;
+}
+
+function buildFbcFromFbclid(fbclid: string | null, dateValue: string | null) {
+    if (!fbclid) return null;
+
+    const timestamp = dateValue
+        ? Math.floor(new Date(dateValue).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+
+    return `fb.1.${timestamp}.${fbclid}`;
+}
+
+function removeNullValues<T extends Record<string, unknown>>(object: T) {
+    return Object.fromEntries(
+        Object.entries(object).filter(([, value]) => {
+            if (value === null || value === undefined || value === "") return false;
+
+            if (Array.isArray(value)) {
+                return value.length > 0;
+            }
+
+            return true;
+        })
+    );
 }
 
 function toUnixSeconds(date: string) {
