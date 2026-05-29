@@ -13,7 +13,7 @@ import {
     RefreshCcw,
     Megaphone,
     Settings,
-    ShieldCheck,
+    Flag,
     Users,
 } from "lucide-react";
 
@@ -30,7 +30,7 @@ type SidePanelProps = {
 const defaultItems: SidePanelItem[] = [
     { label: "Dashboard", href: "/", icon: <LayoutDashboard size={18} /> },
     { label: "Mensagens", href: "/mensagens", icon: <MessageCircle size={18} /> },
-    { label: "Jornada", href: "/jornada", icon: <ShieldCheck size={18} /> },
+    { label: "Jornada", href: "/jornada", icon: <Flag size={18} /> },
     { label: "Eventos", href: "/eventos", icon: <Megaphone size={18} /> },
     // { label: "Atendentes", href: "/atendentes", icon: <Users size={18} /> },
     // { label: "Relatórios", href: "/relatorios", icon: <FileText size={18} /> },

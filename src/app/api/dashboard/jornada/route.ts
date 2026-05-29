@@ -1,0 +1,394 @@
+// src/app/api/dashboard/jornada/route.ts
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase/client";
+
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+
+    const days = Number(searchParams.get("days") ?? 7);
+
+    const customStartDate = searchParams.get("start_date");
+    const customEndDate = searchParams.get("end_date");
+
+    const unitIds = parseIds(searchParams.get("unit_ids"));
+    const serviceIds = parseIds(searchParams.get("service_ids"));
+    const attendantIds = parseIds(searchParams.get("attendant_ids"));
+
+    const dateRange = getDateRange({
+        days,
+        customStartDate,
+        customEndDate,
+    });
+
+    const { analyses, error } = await fetchAnalyses({
+        dateRange,
+        unitIds,
+        serviceIds,
+        attendantIds,
+    });
+
+    if (error) {
+        return NextResponse.json(
+            { error: error.message },
+            { status: 500 }
+        );
+    }
+
+    return NextResponse.json({
+        journey_funnel: buildJourneyFunnel(analyses),
+        dropoff_moments: buildDropoffMoments(analyses),
+        intent_paths: buildIntentPaths(analyses),
+        objections: buildObjections(analyses),
+    });
+}
+
+async function fetchAnalyses({
+                                 dateRange,
+                                 unitIds,
+                                 serviceIds,
+                                 attendantIds,
+                             }: {
+    dateRange: {
+        start: Date;
+        end: Date;
+    };
+    unitIds: string[];
+    serviceIds: string[];
+    attendantIds: string[];
+}) {
+    let query = supabase
+        .from("conversation_analysis")
+        .select("*")
+        .gte("started_at", dateRange.start.toISOString())
+        .lte("started_at", dateRange.end.toISOString());
+
+    if (unitIds.length > 0) {
+        query = query.in("unit_id", unitIds);
+    }
+
+    if (serviceIds.length > 0) {
+        query = query.in("service_id", serviceIds);
+    }
+
+    if (attendantIds.length > 0) {
+        query = query.in("attendant_id", attendantIds);
+    }
+
+    const { data, error } = await query;
+
+    return {
+        analyses: data ?? [],
+        error,
+    };
+}
+
+function buildJourneyFunnel(analyses: any[]) {
+    const clients = groupAnalysesByClient(analyses);
+
+    const startedClients = clients.filter((clientAnalyses) => {
+        return clientAnalyses.length > 0;
+    });
+
+    const requestedInformationClients = startedClients.filter((clientAnalyses) =>
+        hasClientOutcomeEvent(clientAnalyses, "information_requested")
+    );
+
+    const answeredInformationClients = requestedInformationClients.filter((clientAnalyses) =>
+        hasClientOutcomeEvent(clientAnalyses, "information_answered")
+    );
+
+    const pricePresentedClients = answeredInformationClients.filter((clientAnalyses) =>
+        hasClientOutcomeEvent(clientAnalyses, "price_presented")
+    );
+
+    const consultationOfferedClients = pricePresentedClients.filter((clientAnalyses) =>
+        hasClientOutcomeEvent(clientAnalyses, "consultation_offered")
+    );
+
+    const scheduledClients = consultationOfferedClients.filter((clientAnalyses) =>
+        clientAnalyses.some((analysis) =>
+            ["scheduled", "rescheduled", "confirmed_attendance"].includes(
+                analysis.customer_final_state
+            )
+        ) ||
+        hasClientOutcomeEvent(clientAnalyses, "appointment_scheduled") ||
+        hasClientOutcomeEvent(clientAnalyses, "appointment_rescheduled")
+    );
+
+    const total = startedClients.length;
+
+    const steps = [
+        {
+            key: "started",
+            name: "Iniciou conversa",
+            value: startedClients.length,
+            fill: "#ddd6fe",
+        },
+        {
+            key: "information_requested",
+            name: "Pediu informação",
+            value: requestedInformationClients.length,
+            fill: "#bbf7d0",
+        },
+        {
+            key: "information_answered",
+            name: "Informação respondida",
+            value: answeredInformationClients.length,
+            fill: "#bfdbfe",
+        },
+        {
+            key: "price_presented",
+            name: "Preço apresentado",
+            value: pricePresentedClients.length,
+            fill: "#c4b5fd",
+        },
+        {
+            key: "consultation_offered",
+            name: "Consulta oferecida",
+            value: consultationOfferedClients.length,
+            fill: "#fed7aa",
+        },
+        {
+            key: "appointment_scheduled",
+            name: "Agendamento realizado",
+            value: scheduledClients.length,
+            fill: "#fbcfe8",
+        },
+    ];
+
+    return steps.map((step, index) => {
+        const previousValue = index === 0 ? total : steps[index - 1].value;
+
+        return {
+            ...step,
+            percentage: percentage(step.value, total),
+            relative_percentage: percentage(step.value, previousValue),
+        };
+    });
+}
+
+function groupAnalysesByClient(analyses: any[]) {
+    const map = new Map<string, any[]>();
+
+    for (const analysis of analyses) {
+        if (!analysis.client_id) continue;
+
+        const current = map.get(analysis.client_id) ?? [];
+        current.push(analysis);
+        map.set(analysis.client_id, current);
+    }
+
+    return Array.from(map.values());
+}
+
+function hasClientOutcomeEvent(clientAnalyses: any[], eventType: string) {
+    return clientAnalyses.some((analysis) => {
+        const events = Array.isArray(analysis.outcome_events)
+            ? analysis.outcome_events
+            : [];
+
+        return events.some((event: { type?: string }) => event.type === eventType);
+    });
+}
+
+
+function buildDropoffMoments(analyses: any[]) {
+    const dropoffs = analyses.filter(
+        (item) => item.dropoff_happened && item.dropoff_moment
+    );
+
+    const grouped = groupBy(dropoffs, "dropoff_moment");
+
+    return Object.entries(grouped)
+        .map(([moment, count]) => ({
+            moment,
+            label: getDropoffLabel(moment),
+            count,
+            percentage: percentage(count, dropoffs.length),
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+}
+
+function buildIntentPaths(analyses: any[]) {
+    const map = new Map<
+        string,
+        {
+            intent: string;
+            resolved: number;
+            partial: number;
+            abandoned: number;
+        }
+    >();
+
+    for (const item of analyses) {
+        const key = item.customer_start_intent ?? "other";
+
+        const current =
+            map.get(key) ??
+            {
+                intent: getIntentLabel(key),
+                resolved: 0,
+                partial: 0,
+                abandoned: 0,
+            };
+
+        if (item.dropoff_happened || item.resolution_reasoning_category === "customer_abandoned") {
+            current.abandoned += 1;
+        } else if (item.resolution_result === "resolved") {
+            current.resolved += 1;
+        } else {
+            current.partial += 1;
+        }
+
+        map.set(key, current);
+    }
+
+    return Array.from(map.values()).sort(
+        (a, b) =>
+            b.resolved +
+            b.partial +
+            b.abandoned -
+            (a.resolved + a.partial + a.abandoned)
+    );
+}
+
+function buildObjections(analyses: any[]) {
+    const counts = new Map<string, number>();
+
+    for (const item of analyses) {
+        const objections = Array.isArray(item.objections) ? item.objections : [];
+
+        for (const objection of objections) {
+            if (!objection?.type) continue;
+
+            counts.set(objection.type, (counts.get(objection.type) ?? 0) + 1);
+        }
+    }
+
+    const max = Math.max(...Array.from(counts.values()), 0);
+
+    return Array.from(counts.entries())
+        .map(([type, value]) => ({
+            type,
+            label: getObjectionLabel(type),
+            value,
+            percentage: percentage(value, max),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+}
+
+type OutcomeEvent = {
+    type: string;
+};
+
+function countWithOutcomeEvent(analyses: any[], eventType: string) {
+    return analyses.filter((item) => {
+        const events: OutcomeEvent[] = Array.isArray(item.outcome_events)
+            ? item.outcome_events
+            : [];
+
+        return events.some((event: OutcomeEvent) => event.type === eventType);
+    }).length;
+}
+
+function percentage(value: number, total: number): number {
+    if (total === 0) return 0;
+
+    return Math.round((value / total) * 100);
+}
+
+function groupBy(items: any[], key: string): Record<string, number> {
+    return items.reduce<Record<string, number>>((acc, item) => {
+        const value = item[key];
+
+        if (!value) return acc;
+
+        acc[value] = (acc[value] ?? 0) + 1;
+
+        return acc;
+    }, {});
+}
+
+function parseIds(value: string | null): string[] {
+    if (!value) return [];
+
+    return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function getDateRange({
+                          days,
+                          customStartDate,
+                          customEndDate,
+                      }: {
+    days: number;
+    customStartDate: string | null;
+    customEndDate: string | null;
+}) {
+    if (customStartDate) {
+        const start = new Date(`${customStartDate}T00:00:00.000`);
+        const end = new Date(`${customEndDate ?? customStartDate}T23:59:59.999`);
+
+        return { start, end };
+    }
+
+    const end = new Date();
+    const start = new Date();
+
+    start.setDate(start.getDate() - days);
+
+    return { start, end };
+}
+
+function getDropoffLabel(moment: string): string {
+    const labels: Record<string, string> = {
+        after_price: "Após preço",
+        after_consultation_online: "Após apresentação da consulta online",
+        after_unit_presented: "Após unidade apresentada",
+        after_schedule_options: "Após opções de agendamento",
+        after_payment_info: "Após informação de pagamento",
+        after_medical_question: "Após pergunta médica",
+        after_delay: "Após demora no atendimento",
+        unknown: "Desconhecido",
+    };
+
+    return labels[moment] ?? moment;
+}
+
+function getIntentLabel(intent: string): string {
+    const labels: Record<string, string> = {
+        answer_information: "Informação",
+        schedule_consultation: "Agendar consulta",
+        reschedule_consultation: "Reagendar",
+        confirm_attendance: "Confirmar presença",
+        recover_inactive_lead: "Recuperar lead",
+        explain_treatment: "Explicar tratamento",
+        handle_price_objection: "Objeção de preço",
+        collect_documents_or_exams: "Documentos/exames",
+        post_consultation_followup: "Pós-consulta",
+        asked_to_think: "Pediu para pensar",
+        other: "Outro",
+    };
+
+    return labels[intent] ?? intent;
+}
+
+function getObjectionLabel(type: string): string {
+    const labels: Record<string, string> = {
+        price: "Preço",
+        distance: "Distância",
+        online_consultation: "Consulta online",
+        time_availability: "Disponibilidade",
+        trust: "Confiança",
+        medical_uncertainty: "Incerteza médica",
+        partner_or_family: "Parceiro/família",
+        already_treating_elsewhere: "Já trata em outro lugar",
+        other: "Outro",
+    };
+
+    return labels[type] ?? type;
+}

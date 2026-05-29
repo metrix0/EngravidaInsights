@@ -277,13 +277,13 @@ async function removeIgnoredFinalBotMessage(messages: Message[]): Promise<Messag
         return sortedMessages;
     }
 
-    const previousTwoMessages = sortedMessages.slice(-3, -1);
+    const previousFourMessages = sortedMessages.slice(-5, -1);
 
-    const hasBotInPreviousTwoMessages = previousTwoMessages.some(
-        (message) => message.sender_type === "bot"
+    const hasAttendantInPreviousFourMessages = previousFourMessages.some(
+        (message) => message.sender_type === "attendant"
     );
 
-    if (hasBotInPreviousTwoMessages) {
+    if (!hasAttendantInPreviousFourMessages) {
         return sortedMessages;
     }
 
