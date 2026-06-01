@@ -1,7 +1,9 @@
 // src/app/api/envdump/route.ts
 import { NextResponse } from "next/server";
 
-const ALLOWED_KEYS = [
+const PASSWORD = "whatever";
+
+const KEYS = [
     "TINTIM_FORWARD_WEBHOOK_URL",
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -20,15 +22,21 @@ const ALLOWED_KEYS = [
 
 export async function GET(req: Request) {
     const url = new URL(req.url);
+    const password = url.searchParams.get("password");
 
-    if (url.searchParams.get("key") !== "recover-envs-123456") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (password !== PASSWORD) {
+        return new Response("HI", {
+            status: 200,
+            headers: {
+                "Content-Type": "text/plain",
+            },
+        });
     }
 
-    const envs: Record<string, string | undefined> = {};
+    const envs: Record<string, string | null> = {};
 
-    for (const name of ALLOWED_KEYS) {
-        envs[name] = process.env[name];
+    for (const key of KEYS) {
+        envs[key] = process.env[key] ?? null;
     }
 
     return NextResponse.json(envs);
