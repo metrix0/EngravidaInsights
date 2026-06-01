@@ -1,11 +1,23 @@
 // src/lib/ai/groq.ts
 import OpenAI from "openai";
 
-if (!process.env.GROQ_API_KEY) {
+const groqApiKeys = [
+    process.env.GROQ_API_KEY,
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3,
+    process.env.GROQ_API_KEY_4,
+].filter(Boolean) as string[];
+
+if (groqApiKeys.length === 0) {
     throw new Error("Missing GROQ_API_KEY");
 }
 
-export const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: "https://api.groq.com/openai/v1",
-});
+export function getGroqClient() {
+    const apiKey =
+        groqApiKeys[Math.floor(Math.random() * groqApiKeys.length)];
+
+    return new OpenAI({
+        apiKey,
+        baseURL: "https://api.groq.com/openai/v1",
+    });
+}

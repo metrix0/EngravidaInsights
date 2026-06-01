@@ -32,6 +32,8 @@ type AttendantRow = {
     external_attendant_id: string | null;
 };
 
+const QUERY_BATCH_SIZE = 100;
+
 export async function matchMessagesSenderName({
                                                   limit,
                                               }: MatchMessagesSenderNameInput) {
@@ -60,19 +62,7 @@ export async function matchMessagesSenderName({
         (conversation) => conversation.id
     );
 
-    const { data: messagesData, error: messagesError } = await supabase
-        .from("messages")
-        .select(
-            "id, conversation_id, client_id, sender_type, sender_name, external_contact_id, external_attendant_id"
-        )
-        .in("conversation_id", conversationIds)
-        .order("sent_at", { ascending: true });
-
-    if (messagesError) {
-        throw messagesError;
-    }
-
-    const messages = (messagesData ?? []) as MessageRow[];
+    const messages = await fetchMessagesByConversationIds(conversationIds);
 
     const clientIds = Array.from(
         new Set(messages.map((message) => message.client_id).filter(Boolean))
@@ -94,38 +84,12 @@ export async function matchMessagesSenderName({
         )
     );
 
-    const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
-        .select("id, name, external_contact_id")
-        .or(
-            [
-                clientIds.length > 0 ? `id.in.(${clientIds.join(",")})` : null,
-                externalContactIds.length > 0
-                    ? `external_contact_id.in.(${externalContactIds.join(",")})`
-                    : null,
-            ]
-                .filter(Boolean)
-                .join(",")
-        );
+    const clients = await fetchClients({
+        clientIds,
+        externalContactIds,
+    });
 
-    if (clientsError) {
-        throw clientsError;
-    }
-
-    const attendantsQuery =
-        externalAttendantIds.length > 0
-            ? await supabase
-                .from("attendants")
-                .select("id, name, external_attendant_id")
-                .in("external_attendant_id", externalAttendantIds)
-            : { data: [], error: null };
-
-    if (attendantsQuery.error) {
-        throw attendantsQuery.error;
-    }
-
-    const clients = (clientsData ?? []) as ClientRow[];
-    const attendants = (attendantsQuery.data ?? []) as AttendantRow[];
+    const attendants = await fetchAttendants(externalAttendantIds);
 
     const clientsById = new Map(clients.map((client) => [client.id, client]));
     const clientsByExternalContactId = new Map(
@@ -193,6 +157,96 @@ export async function matchMessagesSenderName({
         ready_conversation_ids: readyConversationIds,
         skipped_conversation_ids: Array.from(skippedConversationIds),
     };
+}
+
+async function fetchMessagesByConversationIds(
+    conversationIds: string[]
+): Promise<MessageRow[]> {
+    const messages: MessageRow[] = [];
+
+    for (const ids of chunk(conversationIds, QUERY_BATCH_SIZE)) {
+        const { data, error } = await supabase
+            .from("messages")
+            .select(
+                "id, conversation_id, client_id, sender_type, sender_name, external_contact_id, external_attendant_id"
+            )
+            .in("conversation_id", ids)
+            .is("sender_name", null)
+            .order("sent_at", { ascending: true });
+
+        if (error) {
+            throw error;
+        }
+
+        messages.push(...((data ?? []) as MessageRow[]));
+    }
+
+    return messages;
+}
+
+async function fetchClients({
+                                clientIds,
+                                externalContactIds,
+                            }: {
+    clientIds: string[];
+    externalContactIds: string[];
+}): Promise<ClientRow[]> {
+    const clientsById = new Map<string, ClientRow>();
+
+    for (const ids of chunk(clientIds, QUERY_BATCH_SIZE)) {
+        const { data, error } = await supabase
+            .from("clients")
+            .select("id, name, external_contact_id")
+            .in("id", ids);
+
+        if (error) {
+            throw error;
+        }
+
+        for (const client of (data ?? []) as ClientRow[]) {
+            clientsById.set(client.id, client);
+        }
+    }
+
+    for (const ids of chunk(externalContactIds, QUERY_BATCH_SIZE)) {
+        const { data, error } = await supabase
+            .from("clients")
+            .select("id, name, external_contact_id")
+            .in("external_contact_id", ids);
+
+        if (error) {
+            throw error;
+        }
+
+        for (const client of (data ?? []) as ClientRow[]) {
+            clientsById.set(client.id, client);
+        }
+    }
+
+    return Array.from(clientsById.values());
+}
+
+async function fetchAttendants(
+    externalAttendantIds: string[]
+): Promise<AttendantRow[]> {
+    const attendantsById = new Map<string, AttendantRow>();
+
+    for (const ids of chunk(externalAttendantIds, QUERY_BATCH_SIZE)) {
+        const { data, error } = await supabase
+            .from("attendants")
+            .select("id, name, external_attendant_id")
+            .in("external_attendant_id", ids);
+
+        if (error) {
+            throw error;
+        }
+
+        for (const attendant of (data ?? []) as AttendantRow[]) {
+            attendantsById.set(attendant.id, attendant);
+        }
+    }
+
+    return Array.from(attendantsById.values());
 }
 
 function getSenderNameForMessage({
@@ -273,4 +327,14 @@ async function updateConversationAttendantNames({
             throw error;
         }
     }
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+
+    return chunks;
 }

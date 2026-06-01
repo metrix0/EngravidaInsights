@@ -155,6 +155,10 @@ async function createConversationAndAttachMessages(
         (message) => message.sender_type === "attendant"
     );
 
+    const attendant = attendantMessage?.external_attendant_id
+        ? await getAttendantByExternalId(attendantMessage.external_attendant_id)
+        : null;
+
     const { data: conversation, error: conversationError } = await supabase
         .from("conversations")
         .insert({
@@ -164,8 +168,9 @@ async function createConversationAndAttachMessages(
             started_at: firstMessage.sent_at,
             ended_at: lastMessage.sent_at,
 
-            attendant_id: null,
-            attendant_chat_name: attendantMessage?.sender_name ?? null,
+            attendant_id: attendant?.id ?? null,
+            attendant_chat_name:
+                attendant?.name ?? attendantMessage?.sender_name ?? null,
 
             unit_id: null,
             service_id: null,
@@ -204,7 +209,7 @@ async function createConversationAndAttachMessages(
         started_at: firstMessage.sent_at,
         ended_at: lastMessage.sent_at,
 
-        attendant_id: null,
+        attendant_id: attendant?.id ?? null,
         unit_id: null,
         service_id: null,
 
@@ -296,4 +301,18 @@ async function removeIgnoredFinalBotMessage(messages: Message[]): Promise<Messag
     await deleteMessages([lastMessage]);
 
     return sortedMessages.slice(0, -1);
+}
+
+async function getAttendantByExternalId(externalAttendantId: string) {
+    const { data, error } = await supabase
+        .from("attendants")
+        .select("id, name")
+        .eq("external_attendant_id", externalAttendantId)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error(`Failed to fetch attendant: ${error.message}`);
+    }
+
+    return data;
 }

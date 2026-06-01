@@ -9,8 +9,8 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
 
-        const inactivityHours = Number(searchParams.get("inactivity_hours") ?? 6);
-        const limit = Number(searchParams.get("limit") ?? 9999);
+        const inactivityHours = Number(searchParams.get("inactivity_hours") ?? 12);
+        const limit = Number(searchParams.get("limit") ?? 1000);
 
         console.log("[/api/analyze] starting pipeline", {
             inactivity_hours: inactivityHours,

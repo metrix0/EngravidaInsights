@@ -9,6 +9,7 @@ type SendMetaEventsInput = {
     phone: string | null;
     email?: string | null;
     conversation_id: string;
+    conversation_ended_at: string;
 };
 
 type ClientTracking = {
@@ -43,6 +44,7 @@ export async function sendMetaEvents({
                                          phone,
                                          email,
                                          conversation_id,
+                                         conversation_ended_at,
                                      }: SendMetaEventsInput) {
     if (events.length === 0) {
         return {
@@ -52,9 +54,12 @@ export async function sendMetaEvents({
         };
     }
 
+    const sentAt = new Date().toISOString();
+
     const adEventIds = await createPendingMetaAdEvents({
         events,
         conversation_id,
+        sentAt,
     });
 
     try {
@@ -107,7 +112,7 @@ export async function sendMetaEvents({
         const payload = {
             data: events.map((event) => ({
                 event_name: event.meta_event_name,
-                event_time: toUnixSeconds(event.occurred_at),
+                event_time: toUnixSeconds(conversation_ended_at),
                 event_id: `${conversation_id}:${event.type}`,
 
                 action_source: "chat",
@@ -293,9 +298,11 @@ function buildTrackingCustomData(tracking: ClientTracking | null) {
 async function createPendingMetaAdEvents({
                                              events,
                                              conversation_id,
+                                             sentAt,
                                          }: {
     events: DerivedAdEvent[];
     conversation_id: string;
+    sentAt: string;
 }) {
     const { data, error } = await supabase
         .from("ad_events")
@@ -305,7 +312,7 @@ async function createPendingMetaAdEvents({
                 event_type: event.type,
                 platform: "Meta Ads",
                 status: "pending",
-                event_date: event.occurred_at,
+                event_date: sentAt,
             }))
         )
         .select("id");

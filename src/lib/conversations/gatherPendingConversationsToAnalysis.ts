@@ -122,11 +122,12 @@ export async function gatherPendingConversationsToAnalysis({
                     throw clientError;
                 }
 
-                await sendMetaEvents({
+                metaResult = await sendMetaEvents({
                     events: adEvents,
                     phone: client.phone,
                     email: client.email,
                     conversation_id: conversation.id,
+                    conversation_ended_at: conversation.ended_at ?? conversation.started_at,
                 });
 
                 console.log("[gatherPendingConversationsToAnalysis] ad events sent to meta", {

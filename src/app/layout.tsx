@@ -20,7 +20,22 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="pt-BR" className={`${inter.variable} antialiased`}>
-        <body>{children}</body>
+        <body>
+        <div className="flex min-h-screen items-center justify-center bg-white px-6 text-center md:hidden">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-950">
+                    Acesse pelo computador
+                </h1>
+
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                    O Engravida Insights foi feito para telas maiores.
+                    Abra em um notebook ou computador para visualizar o dashboard.
+                </p>
+            </div>
+        </div>
+
+        <div className="hidden md:block">{children}</div>
+        </body>
         </html>
     );
 }

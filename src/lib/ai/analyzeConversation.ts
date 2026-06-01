@@ -1,9 +1,22 @@
 // src/lib/ai/analyzeConversation.ts
-import { groq } from "./groq";
+import { getGroqClient } from "./groq";
 import { conversationAnalysisSchema } from "./conversationAnalysisSchema";
 import type { AnalyzeConversationInput, ConversationAnalysis } from "@/types";
 
-const analysisModel = process.env.GROQ_MODEL_ANALYSIS ?? "openai/gpt-oss-120b";
+const analysisModels = [
+    process.env.GROQ_MODEL_ANALYSIS,
+    process.env.GROQ_MODEL_ANALYSIS_2,
+    process.env.GROQ_MODEL_ANALYSIS_3,
+    process.env.GROQ_MODEL_ANALYSIS_4,
+].filter(Boolean) as string[];
+
+if (analysisModels.length === 0) {
+    analysisModels.push("openai/gpt-oss-120b");
+}
+
+function getRandomAnalysisModel() {
+    return analysisModels[Math.floor(Math.random() * analysisModels.length)];
+}
 
 const MAX_ATTEMPTS = 2;
 
@@ -21,8 +34,11 @@ export async function analyzeConversation({
     let lastContent: string | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const groq = getGroqClient();
+        const model = getRandomAnalysisModel();
+
         const response: any = await groq.chat.completions.create({
-            model: analysisModel,
+            model,
             temperature: 0,
             response_format: {
                 type: "json_object",

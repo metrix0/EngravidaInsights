@@ -349,11 +349,11 @@ function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
                                     {item.value}
                                 </span>
 
-                                <span className="rounded-full bg-slate-100 text-right text-xs font-bold text-slate-500">
+                                <span className="rounded-full text-right text-xs font-bold text-slate-500">
                                     {item.relative_percentage}%
                                 </span>
 
-                                <span className="rounded-full bg-slate-100 text-right text-xs font-medium text-slate-500">
+                                <span className="rounded-full  text-right text-xs font-medium text-slate-500">
                                     ({item.percentage}%)
                                 </span>
                             </div>

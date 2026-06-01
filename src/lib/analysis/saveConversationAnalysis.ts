@@ -11,9 +11,9 @@ export async function saveConversationAnalysis(analysis: ConversationAnalysis) {
             started_at: analysis.started_at,
             ended_at: analysis.ended_at,
 
-            attendant_id: analysis.attendant_id,
-            unit_id: analysis.unit_id,
-            service_id: analysis.service_id,
+                attendant_id: nullableUuid(analysis.attendant_id),
+                unit_id: nullableUuid(analysis.unit_id),
+                service_id: nullableUuid(analysis.service_id),
 
             customer_start_intent: analysis.customer_start_intent,
             conversation_goal: analysis.conversation_goal,
@@ -68,4 +68,15 @@ export async function saveConversationAnalysis(analysis: ConversationAnalysis) {
     if (error) {
         throw new Error(`Failed to save conversation analysis: ${error.message}`);
     }
+}
+
+function nullableUuid(value: string | null | undefined) {
+        if (!value) return null;
+
+        const isUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                value
+            );
+
+        return isUuid ? value : null;
 }
