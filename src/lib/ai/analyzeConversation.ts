@@ -18,7 +18,7 @@ function getRandomAnalysisModel() {
     return analysisModels[Math.floor(Math.random() * analysisModels.length)];
 }
 
-const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 3;
 
 export async function analyzeConversation({
                                               conversation_id,
@@ -32,46 +32,72 @@ export async function analyzeConversation({
                                           }: AnalyzeConversationInput): Promise<ConversationAnalysis> {
     let lastError: unknown = null;
     let lastContent: string | null = null;
+    const attemptedModels: string[] = [];
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const groq = getGroqClient();
         const model = getRandomAnalysisModel();
 
-        const response: any = await groq.chat.completions.create({
-            model,
-            temperature: 0,
-            response_format: {
-                type: "json_object",
-            },
-            messages: [
-                {
-                    role: "system",
-                    content: buildSystemPrompt(),
-                },
-                {
-                    role: "user",
-                    content: buildUserPrompt({
-                        conversation_id,
-                        client_id,
-                        started_at,
-                        ended_at,
-                        attendant_id,
-                        unit_id,
-                        service_id,
-                        conversationText,
-                        previousError:
-                            attempt > 1
-                                ? formatValidationError(lastError, lastContent)
-                                : null,
-                    }),
-                },
-            ],
-        });
+        attemptedModels.push(model);
+
+
+        let response: any;
+
+        try {
+            response = await groq.chat.completions.create({
+                model,
+                temperature: 0,
+                // response_format: {
+                //     type: "json_object",
+                // },
+                messages: [
+                    {
+                        role: "system",
+                        content: buildSystemPrompt(),
+                    },
+                    {
+                        role: "user",
+                        content: buildUserPrompt({
+                            conversation_id,
+                            client_id,
+                            started_at,
+                            ended_at,
+                            attendant_id,
+                            unit_id,
+                            service_id,
+                            conversationText,
+                            previousError:
+                                attempt > 1
+                                    ? formatValidationError(lastError, lastContent)
+                                    : null,
+                        }),
+                    },
+                ],
+            });
+        } catch (error) {
+            lastError = error;
+
+            console.error("[analyzeConversation] AI request failed:", {
+                conversation_id,
+                client_id,
+                attempt,
+                model,
+                error,
+            });
+
+            continue;
+        }
 
         const content = response.choices[0]?.message?.content;
 
         if (!content) {
             lastError = new Error("AI did not return content");
+
+            console.error("[analyzeConversation] AI did not return content", {
+                attempt,
+                model,
+            });
+
             continue;
         }
 
@@ -83,7 +109,13 @@ export async function analyzeConversation({
             json = JSON.parse(content);
         } catch (error) {
             lastError = error;
-            console.error("[analyzeConversation] Invalid AI JSON:", content);
+
+            console.error("[analyzeConversation] Invalid AI JSON:", {
+                attempt,
+                model,
+                content,
+            });
+
             continue;
         }
 
@@ -93,6 +125,7 @@ export async function analyzeConversation({
             lastError = parsed.error;
             console.error("[analyzeConversation] AI schema validation failed:", {
                 attempt,
+                model,
                 issues: parsed.error.issues,
                 content,
             });
@@ -114,6 +147,7 @@ export async function analyzeConversation({
     }
 
     console.error("[analyzeConversation] AI failed after retries", {
+        attemptedModels,
         lastError,
         lastContent,
     });
@@ -149,6 +183,8 @@ ABSOLUTE OUTPUT REQUIREMENTS:
 - short_label must be in Portuguese.
 
 SCORE FIELDS THAT ARE NEVER NULL:
+- All score fields must be integers from 0 to 100, never decimals from 0 to 1.
+- Example: use 60, not 0.6.
 - sentiment.satisfaction_score
 - attendant_quality.clarity_score
 - attendant_quality.empathy_score
@@ -186,8 +222,17 @@ NORMAL CLOSURE RULES:
 
 DROPOFF RULES:
 - Always evaluate whether the customer abandoned the conversation.
-- dropoff.happened = true ONLY when the conversation ends because the customer stopped replying while a relevant question, offer, request, price, schedule option, payment step, medical question, document request, or confirmation was still pending.
-- If the last meaningful customer message is gratitude, acknowledgement, agreement, or closure, then dropoff.happened = false.
+- Bot-to-attendant abandonment rule:
+  If the customer talked with the bot, then a human attendant sent the first attendant message, and after that first human attendant message the customer never replied again, classify it as abandonment.
+  In this case:
+  customer_final_state = "stopped_responding"
+  dropoff.happened = true
+  dropoff.moment = "after_delay" if the attendant was following up/waiting, otherwise use "unknown"
+  dropoff.likely_reason = "Cliente abandonou após entrada da atendente"
+  resolution.resolved = "partial" or "false" depending on whether the customer's issue was already answered before the attendant entered
+  resolution.reasoning_category = "customer_abandoned"
+Add outcome event "customer_stopped_responding"
+- dropoff.happened = true ONLY when the conversation ends because the customer stopped replying while a relevant question, offer, request, price, schedule option, payment step, medical question, document request, or confirmation was still pending.- If the last meaningful customer message is gratitude, acknowledgement, agreement, or closure, then dropoff.happened = false.
 - If the last meaningful message is from the attendant/bot and it asks a question, offers schedule options, presents price, asks for payment/document, gives follow-up, or waits for confirmation, then dropoff.happened should usually be true.
 - If customer_final_state = "stopped_responding", then dropoff.happened MUST be true.
 - If dropoff.happened = true, then dropoff.moment MUST NOT be null.
@@ -354,6 +399,7 @@ ${previousError}
 
 Important classification reminder:
 - Do not classify silence as "asked_to_think".
+- If the customer spoke with the bot, then a human attendant entered, and the customer did not send any message after the first human attendant message, classify as abandonment after bot-to-attendant handoff.
 - Silence after attendant/bot expected a reply = "stopped_responding" + dropoff.happened = true.
 - Explicit thinking/deciding language = "asked_to_think".
 - Customer thanks/acknowledgement after help = resolved/normal closure, not abandonment.

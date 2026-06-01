@@ -182,19 +182,53 @@ async function getConversationsWithoutAnalysis({
         return [];
     }
 
-    let query = supabase
+    if (conversationIds) {
+        const conversations: Conversation[] = [];
+
+        for (const ids of chunk(conversationIds, 100)) {
+            const { data, error } = await supabase
+                .from("conversations")
+                .select("*")
+                .is("conversation_analysis_id", null)
+                .not("ended_at", "is", null)
+                .in("id", ids)
+                .order("ended_at", { ascending: true });
+
+            if (error) {
+                console.error("[gatherPendingConversationsToAnalysis] failed fetching conversations batch", {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code,
+                    batch_size: ids.length,
+                    first_conversation_ids: ids.slice(0, 10),
+                    raw: error,
+                });
+
+                throw new Error(
+                    `Failed to fetch conversations without analysis: ${error.message}`
+                );
+            }
+
+            conversations.push(...((data ?? []) as Conversation[]));
+        }
+
+        return conversations
+            .sort(
+                (a, b) =>
+                    new Date(a.ended_at ?? a.started_at).getTime() -
+                    new Date(b.ended_at ?? b.started_at).getTime()
+            )
+            .slice(0, limit);
+    }
+
+    const { data, error } = await supabase
         .from("conversations")
         .select("*")
         .is("conversation_analysis_id", null)
         .not("ended_at", "is", null)
         .order("ended_at", { ascending: true })
         .limit(limit);
-
-    if (conversationIds) {
-        query = query.in("id", conversationIds);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
         throw new Error(
@@ -203,6 +237,16 @@ async function getConversationsWithoutAnalysis({
     }
 
     return (data ?? []) as Conversation[];
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+
+    return chunks;
 }
 
 async function getConversationMessages(conversationId: string): Promise<Message[]> {
