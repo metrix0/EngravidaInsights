@@ -84,10 +84,7 @@ export async function GET(request: Request) {
         )
     );
 
-    const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
-        .select("*")
-        .in("id", clientIds);
+    const { data: clientsData, error: clientsError } = await fetchClientsByIds(clientIds);
 
     if (clientsError) {
         return NextResponse.json(
@@ -96,13 +93,11 @@ export async function GET(request: Request) {
         );
     }
 
+
+
     const { data: analysesData, error: analysesError } =
-        analysisIds.length > 0
-            ? await supabase
-                .from("conversation_analysis")
-                .select("*")
-                .in("id", analysisIds)
-            : { data: [], error: null };
+        await fetchAnalysesByIds(analysisIds);
+
 
     if (analysesError) {
         return NextResponse.json(
@@ -261,4 +256,52 @@ function getDateRange({
     start.setDate(start.getDate() - days);
 
     return { start, end };
+}
+
+async function fetchClientsByIds(ids: string[]) {
+    const rows: any[] = [];
+
+    for (const batch of chunk(ids, 100)) {
+        const { data, error } = await supabase
+            .from("clients")
+            .select("*")
+            .in("id", batch);
+
+        if (error) return { data: rows, error };
+
+        rows.push(...(data ?? []));
+    }
+
+    return { data: rows, error: null };
+}
+
+async function fetchAnalysesByIds(ids: string[]) {
+    const rows: any[] = [];
+
+    if (ids.length === 0) {
+        return { data: rows, error: null };
+    }
+
+    for (const batch of chunk(ids, 100)) {
+        const { data, error } = await supabase
+            .from("conversation_analysis")
+            .select("*")
+            .in("id", batch);
+
+        if (error) return { data: rows, error };
+
+        rows.push(...(data ?? []));
+    }
+
+    return { data: rows, error: null };
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+
+    return chunks;
 }

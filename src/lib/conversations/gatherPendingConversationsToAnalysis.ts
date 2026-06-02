@@ -5,6 +5,7 @@ import { analyzeConversation } from "@/lib/ai/analyzeConversation";
 import { saveConversationAnalysis } from "@/lib/analysis/saveConversationAnalysis";
 import { deriveAdEventsFromAnalysis } from "@/lib/ads/deriveAdEventsFromAnalysis";
 import { sendMetaEvents } from "@/lib/ads/meta/sendMetaEvents";
+import { sendGoogleEvents } from "@/lib/ads/google/sendGoogleEvents";
 
 import type { AnalyzeConversationInput, Conversation, Message } from "@/types";
 
@@ -110,6 +111,7 @@ export async function gatherPendingConversationsToAnalysis({
             });
 
             let metaResult = null;
+            let googleResult = null;
 
             if (adEvents.length > 0) {
                 const { data: client, error: clientError } = await supabase
@@ -133,6 +135,20 @@ export async function gatherPendingConversationsToAnalysis({
                 console.log("[gatherPendingConversationsToAnalysis] ad events sent to meta", {
                     conversation_id: conversation.id,
                     meta: metaResult,
+                    google: googleResult,
+                });
+
+                googleResult = await sendGoogleEvents({
+                    events: adEvents,
+                    phone: client.phone,
+                    email: client.email,
+                    conversation_id: conversation.id,
+                    conversation_ended_at: conversation.ended_at ?? conversation.started_at,
+                });
+
+                console.log("[gatherPendingConversationsToAnalysis] ad events sent to google", {
+                    conversation_id: conversation.id,
+                    google: googleResult,
                 });
             } else {
                 console.log("[gatherPendingConversationsToAnalysis] no ad events sent to meta", {
@@ -148,6 +164,7 @@ export async function gatherPendingConversationsToAnalysis({
                 short_label: analysis.short_label,
                 ad_events: adEvents,
                 meta: metaResult,
+                google: googleResult,
             });
         } catch (error) {
             console.error("[gatherPendingConversationsToAnalysis] failed processing conversation", {

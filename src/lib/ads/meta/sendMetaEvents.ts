@@ -270,9 +270,7 @@ function buildUserData({
     hashedEmail: string | null;
     tracking: ClientTracking | null;
 }) {
-    const externalId = tracking
-        ? tracking.external_contact_id ?? tracking.id
-        : null;
+    const externalId = tracking?.external_contact_id ?? null;
 
     const fbc =
         tracking?.fbc ??
@@ -290,7 +288,7 @@ function buildUserData({
         ...(hashedPhone ? { ph: [hashedPhone] } : {}),
         ...(hashedEmail ? { em: [hashedEmail] } : {}),
 
-        ...(externalId ? { external_id: [hash(externalId)] } : {}),
+        ...(externalId ? { external_id: [externalId] } : {}),
 
         ...(parsedName.firstName
             ? { fn: [hash(normalizeMetaText(parsedName.firstName))] }
