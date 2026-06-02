@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { InviteRedirect } from "@/components/auth/InviteRedirect";
 
 const inter = Inter({
     variable: "--font-inter",
@@ -21,6 +22,7 @@ export default function RootLayout({
     return (
         <html lang="pt-BR" className={`${inter.variable} antialiased`}>
         <body>
+        <InviteRedirect />
         <div className="flex min-h-screen items-center justify-center bg-white px-6 text-center md:hidden">
             <div>
                 <h1 className="text-2xl font-bold text-slate-950">

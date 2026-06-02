@@ -12,9 +12,11 @@ export default function LoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const [supabase] = useState(() =>
+        createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
     );
 
     const [email, setEmail] = useState("");
@@ -38,6 +40,14 @@ export default function LoginPage() {
 
             setIsInvite(true);
 
+            const existingSession = await supabase.auth.getSession();
+
+            if (existingSession.data.session) {
+                window.history.replaceState(null, "", "/login");
+                setInviteReady(true);
+                return;
+            }
+
             const params = new URLSearchParams(hash.replace("#", ""));
 
             const accessToken = params.get("access_token");
@@ -54,6 +64,7 @@ export default function LoginPage() {
             });
 
             if (error) {
+                console.error("[login] invite setSession failed", error);
                 setErrorMessage("Convite inválido ou expirado.");
                 return;
             }
