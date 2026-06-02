@@ -75,11 +75,7 @@ export default function SidePanel({ items = defaultItems }: SidePanelProps) {
                 href="/"
                 className="mb-10 flex cursor-pointer items-center gap-2 rounded-xl transition hover:bg-slate-50"
             >
-                <img src="/logo.png" className="h-6" alt="Engravida" />
-
-                <span className="text-[1.1rem] font-normal text-amber-700 pt-[2px]">
-                    Insights
-                </span>
+                <img src="/logo.png" className="w-full" alt="Engravida" />
             </Link>
 
             <nav className="space-y-2">

@@ -294,13 +294,14 @@ export default function EventsPage() {
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
+                    <span className={"hidden"}>
                     <FilterButton
                         icon={<MapPin size={16} />}
                         label="Todas as unidades"
                         values={unitIds}
                         onChange={setUnitIds}
                         options={filters?.units ?? []}
-                    />
+                    /></span>
 
                     <FilterButton
                         icon={<BarChart3 size={16} />}

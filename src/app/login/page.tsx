@@ -94,6 +94,7 @@ export default function LoginPage() {
             password,
         });
 
+
         setLoading(false);
 
         if (error) {
