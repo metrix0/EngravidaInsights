@@ -2,7 +2,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -10,7 +10,14 @@ import { Card } from "@/components";
 
 export default function LoginPage() {
     const router = useRouter();
-    const searchParams = useSearchParams();
+
+    function getNextUrl() {
+        if (typeof window === "undefined") return "/";
+
+        const params = new URLSearchParams(window.location.search);
+
+        return params.get("next") ?? "/";
+    }
 
     const [supabase] = useState(() =>
         createBrowserClient(
@@ -94,7 +101,7 @@ export default function LoginPage() {
             return;
         }
 
-        router.replace(searchParams.get("next") ?? "/");
+        router.replace(getNextUrl());
         router.refresh();
     }
 
