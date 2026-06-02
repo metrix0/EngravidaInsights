@@ -25,7 +25,18 @@ type TintimPayload = {
     utm_content?: string | null;
     utm_term?: string | null;
 
+    location?: {
+        state?: string | null;
+        country?: string | null;
+    } | null;
+
     visit?: {
+        meta?: {
+            remote_addr?: string | null;
+            http_user_agent?: {
+                raw?: string | null;
+            } | null;
+        } | null;
         params?: {
             fbclid?: string | null;
             fbc?: string | null;
@@ -168,6 +179,12 @@ function extractTracking(payload: TintimPayload) {
         utm_campaign: firstValue(payload.utm_campaign, params.utm_campaign),
         utm_content: firstValue(payload.utm_content, params.utm_content),
         utm_term: firstValue(payload.utm_term, params.utm_term),
+
+        client_ip_address: firstValue(payload.visit?.meta?.remote_addr),
+        client_user_agent: firstValue(payload.visit?.meta?.http_user_agent?.raw),
+
+        state: firstValue(payload.location?.state),
+        country: firstValue(payload.location?.country),
     };
 }
 

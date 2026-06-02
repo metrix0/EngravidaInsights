@@ -33,6 +33,11 @@ type ClientTracking = {
     utm_content: string | null;
     utm_term: string | null;
 
+    client_ip_address: string | null;
+    client_user_agent: string | null;
+    state: string | null;
+    country: string | null;
+
     tracking_updated_at: string | null;
 };
 
@@ -202,6 +207,10 @@ async function getClientTracking({
                 utm_campaign,
                 utm_content,
                 utm_term,
+                client_ip_address,
+                client_user_agent,
+                state,
+                country,
                 tracking_updated_at
             `
             )
@@ -218,6 +227,7 @@ async function getClientTracking({
         .select(
             `
             id,
+            name,
             external_contact_id,
             created_at,
             fbclid,
@@ -232,6 +242,10 @@ async function getClientTracking({
             utm_campaign,
             utm_content,
             utm_term,
+            client_ip_address,
+            client_user_agent,
+            state,
+            country,
             tracking_updated_at
         `
         )
@@ -269,14 +283,31 @@ function buildUserData({
 
     const parsedName = parseFullName(tracking?.name ?? null);
 
+    const normalizedState = normalizeBrazilState(tracking?.state ?? null);
+    const normalizedCountry = normalizeCountry(tracking?.country ?? null);
+
     return removeNullValues({
         ...(hashedPhone ? { ph: [hashedPhone] } : {}),
         ...(hashedEmail ? { em: [hashedEmail] } : {}),
 
         ...(externalId ? { external_id: [hash(externalId)] } : {}),
 
-        ...(parsedName.firstName ? { fn: [hash(normalizeMetaText(parsedName.firstName))] } : {}),
-        ...(parsedName.lastName ? { ln: [hash(normalizeMetaText(parsedName.lastName))] } : {}),
+        ...(parsedName.firstName
+            ? { fn: [hash(normalizeMetaText(parsedName.firstName))] }
+            : {}),
+        ...(parsedName.lastName
+            ? { ln: [hash(normalizeMetaText(parsedName.lastName))] }
+            : {}),
+
+        ...(tracking?.client_ip_address
+            ? { client_ip_address: tracking.client_ip_address }
+            : {}),
+        ...(tracking?.client_user_agent
+            ? { client_user_agent: tracking.client_user_agent }
+            : {}),
+
+        ...(normalizedState ? { st: [hash(normalizedState)] } : {}),
+        ...(normalizedCountry ? { country: [hash(normalizedCountry)] } : {}),
 
         ...(fbc ? { fbc } : {}),
         ...(tracking?.fbp ? { fbp: tracking.fbp } : {}),
@@ -453,4 +484,66 @@ function normalizeMetaText(value: string) {
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeCountry(value: string | null) {
+    if (!value) return null;
+
+    const normalized = normalizeMetaText(value);
+
+    if (normalized === "brazil" || normalized === "brasil" || normalized === "br") {
+        return "br";
+    }
+
+    if (normalized.length === 2) {
+        return normalized;
+    }
+
+    return null;
+}
+
+function normalizeBrazilState(value: string | null) {
+    if (!value) return null;
+
+    const normalized = normalizeMetaText(value);
+
+    const states: Record<string, string> = {
+        acre: "ac",
+        alagoas: "al",
+        amapa: "ap",
+        amazonas: "am",
+        bahia: "ba",
+        ceara: "ce",
+        "distrito federal": "df",
+        "espirito santo": "es",
+        goias: "go",
+        maranhao: "ma",
+        "mato grosso": "mt",
+        "mato grosso do sul": "ms",
+        "minas gerais": "mg",
+        para: "pa",
+        paraiba: "pb",
+        parana: "pr",
+        pernambuco: "pe",
+        piaui: "pi",
+        "rio de janeiro": "rj",
+        "rio grande do norte": "rn",
+        "rio grande do sul": "rs",
+        rondonia: "ro",
+        roraima: "rr",
+        "santa catarina": "sc",
+        "sao paulo": "sp",
+        sergipe: "se",
+        tocantins: "to",
+    };
+
+    if (states[normalized]) {
+        return states[normalized];
+    }
+
+    if (normalized.length === 2) {
+        return normalized;
+    }
+
+    return null;
 }
