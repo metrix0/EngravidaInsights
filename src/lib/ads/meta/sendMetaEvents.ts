@@ -14,6 +14,7 @@ type SendMetaEventsInput = {
 
 type ClientTracking = {
     id: string;
+    name: string | null;
     external_contact_id: string | null;
     created_at: string | null;
 
@@ -186,6 +187,7 @@ async function getClientTracking({
             .select(
                 `
                 id,
+                name,
                 external_contact_id,
                 created_at,
                 fbclid,
@@ -265,11 +267,16 @@ function buildUserData({
             tracking?.tracking_updated_at ?? tracking?.created_at ?? null
         );
 
+    const parsedName = parseFullName(tracking?.name ?? null);
+
     return removeNullValues({
         ...(hashedPhone ? { ph: [hashedPhone] } : {}),
         ...(hashedEmail ? { em: [hashedEmail] } : {}),
 
         ...(externalId ? { external_id: [hash(externalId)] } : {}),
+
+        ...(parsedName.firstName ? { fn: [hash(normalizeMetaText(parsedName.firstName))] } : {}),
+        ...(parsedName.lastName ? { ln: [hash(normalizeMetaText(parsedName.lastName))] } : {}),
 
         ...(fbc ? { fbc } : {}),
         ...(tracking?.fbp ? { fbp: tracking.fbp } : {}),
@@ -405,4 +412,45 @@ function removeNullValues<T extends Record<string, unknown>>(object: T) {
 
 function toUnixSeconds(date: string) {
     return Math.floor(new Date(date).getTime() / 1000);
+}
+
+function parseFullName(name: string | null) {
+    if (!name) {
+        return {
+            firstName: null,
+            lastName: null,
+        };
+    }
+
+    const parts = name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (parts.length === 0) {
+        return {
+            firstName: null,
+            lastName: null,
+        };
+    }
+
+    if (parts.length === 1) {
+        return {
+            firstName: parts[0],
+            lastName: null,
+        };
+    }
+
+    return {
+        firstName: parts[0],
+        lastName: parts.slice(1).join(" "),
+    };
+}
+
+function normalizeMetaText(value: string) {
+    return value
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 }

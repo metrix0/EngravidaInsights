@@ -1,11 +1,13 @@
 // src/app/api/tintim/route.ts
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 
 import { supabase } from "@/lib/supabase/client";
 
 type TintimPayload = {
     phone?: string | null;
     phone_e164?: string | null;
+    name?: string | null;
 
     fbclid?: string | null;
     fbc?: string | null;
@@ -79,16 +81,27 @@ export async function POST(request: Request) {
             );
         }
 
+        const tracking = extractTracking(payload);
+
         if (!client) {
+            const createdClientId = await createClientFromTintim({
+                phone: normalizedPhone,
+                name: normalizePersonName(payload.name ?? null),
+                tracking,
+            });
+
             return NextResponse.json({
                 ok: true,
                 matched: false,
-                reason: "Client not found",
+                created: true,
+                client_id: createdClientId,
                 phone: normalizedPhone,
+                inserted_tracking_fields: Object.keys(tracking).filter(
+                    (key) => tracking[key as keyof typeof tracking]
+                ),
             });
         }
 
-        const tracking = extractTracking(payload);
         const updatePayload = buildOnlyEmptyFieldsUpdate(client, tracking);
 
         if (Object.keys(updatePayload).length === 0) {
@@ -158,6 +171,46 @@ function extractTracking(payload: TintimPayload) {
     };
 }
 
+async function createClientFromTintim({
+                                          phone,
+                                          name,
+                                          tracking,
+                                      }: {
+    phone: string;
+    name: string | null;
+    tracking: Record<string, string | null>;
+}) {
+    const now = new Date().toISOString();
+
+    const insertPayload = removeNullValues({
+        id: randomUUID(),
+
+        name,
+        phone,
+
+        ...tracking,
+
+        first_seen_at: now,
+        last_interaction_at: now,
+        tracking_updated_at: now,
+
+        created_at: now,
+        updated_at: now,
+    });
+
+    const { data, error } = await supabase
+        .from("clients")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+
+    if (error) {
+        throw error;
+    }
+
+    return data.id as string;
+}
+
 function buildOnlyEmptyFieldsUpdate(
     currentClient: Record<string, unknown>,
     incoming: Record<string, string | null>
@@ -209,6 +262,34 @@ function stripBrazilPrefix(phone: string) {
     }
 
     return phone;
+}
+
+function normalizePersonName(value: string | null): string | null {
+    if (!value) return null;
+
+    const trimmed = value.trim().replace(/\s+/g, " ");
+
+    if (!trimmed) return null;
+
+    return trimmed
+        .toLowerCase()
+        .split(" ")
+        .map((part) => {
+            if (part.length <= 2) return part;
+
+            return part[0].toUpperCase() + part.slice(1);
+        })
+        .join(" ");
+}
+
+function removeNullValues<T extends Record<string, unknown>>(object: T) {
+    return Object.fromEntries(
+        Object.entries(object).filter(([, value]) => {
+            if (value === null || value === undefined || value === "") return false;
+
+            return true;
+        })
+    );
 }
 
 async function forwardTintimWebhook(payload: TintimPayload) {

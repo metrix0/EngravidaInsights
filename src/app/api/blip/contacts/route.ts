@@ -25,6 +25,7 @@ type BlipContactPayload = {
 
     storageDate?: string;
 };
+
 type ParsedBlipContact = {
     external_contact_id: string | null;
     message_external_id: string | null;
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
         const body: BlipContactPayload = await request.json();
 
         const parsedContact = parseBlipContact(body);
+
+        console.log(body);
 
         if (!parsedContact.external_contact_id && !parsedContact.message_external_id) {
             return NextResponse.json({
@@ -114,13 +117,15 @@ function parseBlipContact(payload: BlipContactPayload): ParsedBlipContact {
         )
     );
 
-    const phone = extractPhoneFromExternalContactId(emptyToNull(
-        payload.phoneNumber ??
-        payload.extras?.phoneNumber ??
-        payload.extras?.Telefone ??
-        payload.contact?.PhoneNumber ??
-        extractPhoneFromExternalContactId(externalContactId)
-    ));
+    const phone = normalizeBrazilPhone(
+        emptyToNull(
+            payload.phoneNumber ??
+            payload.extras?.phoneNumber ??
+            payload.extras?.Telefone ??
+            payload.contact?.PhoneNumber ??
+            extractPhoneFromExternalContactId(externalContactId)
+        )
+    );
 
     const email = emptyToNull(
         payload.email ??
@@ -144,12 +149,30 @@ function parseBlipContact(payload: BlipContactPayload): ParsedBlipContact {
             new Date().toISOString(),
     };
 }
+
 async function findClientIdForContact(parsedContact: ParsedBlipContact) {
     if (parsedContact.external_contact_id) {
         const { data, error } = await supabase
             .from("clients")
             .select("id")
             .eq("external_contact_id", parsedContact.external_contact_id)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (data?.id) return data.id;
+    }
+
+    if (parsedContact.phone) {
+        const { data, error } = await supabase
+            .from("clients")
+            .select("id")
+            .or(
+                [
+                    `phone.eq.${parsedContact.phone}`,
+                    `phone.eq.+${parsedContact.phone}`,
+                    `phone.eq.${stripBrazilPrefix(parsedContact.phone)}`,
+                ].join(",")
+            )
             .maybeSingle();
 
         if (error) throw error;
@@ -223,8 +246,6 @@ async function createClient(parsedContact: ParsedBlipContact) {
     if (error) throw error;
 }
 
-
-
 function normalizeExternalContactId(value: string | null): string | null {
     if (!value) return null;
 
@@ -252,6 +273,32 @@ function extractPhoneFromExternalContactId(
     }
 
     return onlyDigits;
+}
+
+function normalizeBrazilPhone(phone: string | null) {
+    if (!phone) return null;
+
+    const digits = phone.replace(/\D/g, "");
+
+    if (!digits) return null;
+
+    if (digits.startsWith("55")) {
+        return digits;
+    }
+
+    if (digits.length === 10 || digits.length === 11) {
+        return `55${digits}`;
+    }
+
+    return digits;
+}
+
+function stripBrazilPrefix(phone: string) {
+    if (phone.startsWith("55")) {
+        return phone.slice(2);
+    }
+
+    return phone;
 }
 
 function normalizePersonName(value: string | null): string | null {
