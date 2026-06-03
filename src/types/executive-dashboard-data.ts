@@ -6,6 +6,8 @@ export type ExecutiveDashboardData = {
         end_date: string | null;
         unit_ids: string[];
         service_ids: string[];
+        tunnel_values: string[];
+        origin_values: string[];
         attendant_ids: string[];
     };
 

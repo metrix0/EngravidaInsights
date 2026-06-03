@@ -30,7 +30,7 @@ import {
 import { SearchFilter } from "@/components/conversations/SearchFilter";
 import AdvancedFilterButton from "@/components/ui/AdvancedFilterButton";
 
-type Period = "7" | "30" | "90";
+type Period = "yesterday" | "7" | "30" | "90";
 
 type DateRange = {
     start: string | null;
@@ -66,12 +66,14 @@ export default function MessagesPage() {
     const [unitIds, setUnitIds] = useState<string[]>([]);
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
+    const [tunnelValues, setTunnelValues] = useState<string[]>([]);
+    const [originValues, setOriginValues] = useState<string[]>([]);
 
     const [goalValues, setGoalValues] = useState<string[]>([]);
     const [resultValues, setResultValues] = useState<string[]>([]);
     const [notableValues, setNotableValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("7");
+    const [period, setPeriod] = useState<Period | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
@@ -93,7 +95,7 @@ export default function MessagesPage() {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,attendants,services"
+                    "/api/dashboard/filters?entities=units,attendants,services,tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -115,6 +117,8 @@ export default function MessagesPage() {
         unitIds,
         attendantIds,
         serviceIds,
+        tunnelValues,
+        originValues,
         goalValues,
         resultValues,
         notableValues,
@@ -129,12 +133,17 @@ export default function MessagesPage() {
             params.set("page", String(currentPage));
             params.set("page_size", String(PAGE_SIZE));
 
-            if (selectedRange.start) {
-                params.set("start_date", selectedRange.start);
-                params.set("end_date", selectedRange.end ?? selectedRange.start);
-            } else {
-                params.set("days", period ?? "7");
-            }
+if (selectedRange.start) {
+    params.set("start_date", selectedRange.start);
+    params.set("end_date", selectedRange.end ?? selectedRange.start);
+} else if (period === "yesterday") {
+    const yesterday = getYesterdayDateString();
+
+    params.set("start_date", yesterday);
+    params.set("end_date", yesterday);
+} else {
+    params.set("days", period ?? "7");
+}
 
             if (search.trim()) {
                 params.set("search", search.trim());
@@ -150,6 +159,13 @@ export default function MessagesPage() {
 
             if (serviceIds.length > 0) {
                 params.set("service_ids", serviceIds.join(","));
+            }
+            if (tunnelValues.length > 0) {
+                params.set("tunnels", tunnelValues.join(","));
+            }
+
+            if (originValues.length > 0) {
+                params.set("origins", originValues.join(","));
             }
 
             if (goalValues.length > 0) {
@@ -186,6 +202,8 @@ export default function MessagesPage() {
         unitIds,
         attendantIds,
         serviceIds,
+        tunnelValues,
+        originValues,
         goalValues,
         resultValues,
         notableValues,
@@ -223,6 +241,21 @@ export default function MessagesPage() {
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
+                    <FilterButton
+                        icon={<BarChart3 size={16} />}
+                        label="Todos os túneis"
+                        values={tunnelValues}
+                        onChange={setTunnelValues}
+                        options={(filters as any)?.tunnels ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<MapPin size={16} />}
+                        label="Todas as origens"
+                        values={originValues}
+                        onChange={setOriginValues}
+                        options={(filters as any)?.origins ?? []}
+                    />
                     <span className={"hidden"}>
                     <FilterButton
                         icon={<MapPin size={16} />}
@@ -240,6 +273,7 @@ export default function MessagesPage() {
                         options={filters?.attendants ?? []}
                     />
 
+<span className={"hidden"}>
                     <FilterButton
                         icon={<BarChart3 size={16} />}
                         label="Todos os serviços"
@@ -247,6 +281,7 @@ export default function MessagesPage() {
                         onChange={setServiceIds}
                         options={filters?.services ?? []}
                     />
+</span>
                 </div>
 
                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
@@ -375,23 +410,24 @@ function Header({
                         end: null,
                     });
                 }}
-                options={[
-                    { value: "7", label: "7 dias" },
-                    { value: "30", label: "30 dias" },
-                    { value: "90", label: "90 dias" },
-                ]}
+options={[
+    { value: "yesterday", label: "Ontem" },
+    { value: "7", label: "7 dias" },
+    { value: "30", label: "30 dias" },
+    { value: "90", label: "90 dias" },
+]}
             >
                 <CalendarButton
                     value={selectedRange}
                     onChange={setSelectedRange}
-                    onApply={(range) => {
-                        if (range.start) {
-                            setPeriod(null);
-                            return;
-                        }
+onApply={(range) => {
+    if (range.start) {
+        setPeriod(null);
+        return;
+    }
 
-                        setPeriod("7");
-                    }}
+    setPeriod("yesterday");
+}}
                 />
             </ButtonGroup>
         </header>
@@ -698,4 +734,15 @@ function MessagesTableSkeleton() {
             ))}
         </div>
     );
+}
+function getYesterdayDateString() {
+    const date = new Date();
+
+    date.setDate(date.getDate() - 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }

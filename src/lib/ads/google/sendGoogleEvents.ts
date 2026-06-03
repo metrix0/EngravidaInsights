@@ -1,6 +1,4 @@
 // src/lib/ads/google/sendGoogleEvents.ts
-import crypto from "crypto";
-
 import { supabase } from "@/lib/supabase/client";
 import type { DerivedAdEvent } from "@/lib/ads/deriveAdEventsFromAnalysis";
 
@@ -19,20 +17,47 @@ type ClientTracking = {
     wbraid: string | null;
 };
 
+type GoogleAdsAccount = {
+    key: "account_1" | "account_2";
+    label: string;
+    customerId: string;
+    qualifiedLeadConversionAction: string;
+    bookAppointmentConversionAction: string;
+};
+
 const googleAdsClientId = process.env.GOOGLE_ADS_CLIENT_ID;
 const googleAdsClientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
 const googleAdsRefreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN;
 const googleAdsDeveloperToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-const googleAdsCustomerId = normalizeCustomerId(process.env.GOOGLE_ADS_CUSTOMER_ID);
-const googleAdsLoginCustomerId = normalizeCustomerId(
-    process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
-);
 
-const qualifiedLeadConversionAction =
-    process.env.GOOGLE_ADS_CONVERSION_ACTION_QUALIFIED_LEAD;
-
-const bookAppointmentConversionAction =
-    process.env.GOOGLE_ADS_CONVERSION_ACTION_BOOK_APPOINTMENT;
+const googleAdsAccounts: GoogleAdsAccount[] = [
+    {
+        key: "account_1",
+        label: "Engravida",
+        customerId: normalizeCustomerId(process.env.GOOGLE_ADS_CUSTOMER_ID)!,
+        qualifiedLeadConversionAction:
+            process.env.GOOGLE_ADS_CONVERSION_ACTION_QUALIFIED_LEAD!,
+        bookAppointmentConversionAction:
+            process.env.GOOGLE_ADS_CONVERSION_ACTION_BOOK_APPOINTMENT!,
+    },
+    ...(process.env.GOOGLE_ADS_CUSTOMER_ID_2
+        ? [
+            {
+                key: "account_2" as const,
+                label: "Clínica Engravida",
+                customerId: normalizeCustomerId(
+                    process.env.GOOGLE_ADS_CUSTOMER_ID_2
+                )!,
+                qualifiedLeadConversionAction:
+                    process.env
+                        .GOOGLE_ADS_CONVERSION_ACTION_QUALIFIED_LEAD_2!,
+                bookAppointmentConversionAction:
+                    process.env
+                        .GOOGLE_ADS_CONVERSION_ACTION_BOOK_APPOINTMENT_2!,
+            },
+        ]
+        : []),
+];
 
 export async function sendGoogleEvents({
                                            events,
@@ -41,7 +66,25 @@ export async function sendGoogleEvents({
                                            conversation_id,
                                            conversation_ended_at,
                                        }: SendGoogleEventsInput) {
+    console.log("[sendGoogleEvents] started", {
+        conversation_id,
+        events_count: events.length,
+        conversation_ended_at,
+        has_phone: Boolean(phone),
+        has_email: Boolean(email),
+        accounts_count: googleAdsAccounts.length,
+        accounts: googleAdsAccounts.map((account) => ({
+            key: account.key,
+            label: account.label,
+            customer_id: account.customerId,
+        })),
+    });
+
     if (events.length === 0) {
+        console.log("[sendGoogleEvents] skipped: no ad events", {
+            conversation_id,
+        });
+
         return {
             ok: true,
             skipped: true,
@@ -57,83 +100,231 @@ export async function sendGoogleEvents({
         sentAt,
     });
 
+    console.log("[sendGoogleEvents] pending ad_events created", {
+        conversation_id,
+        ad_event_ids: adEventIds,
+    });
+
     try {
         validateGoogleEnv();
-
-        const normalizedPhone = phone ? normalizeBrazilPhone(phone) : null;
-
-        const hashedPhone = normalizedPhone
-            ? hash(`+${normalizedPhone}`)
-            : null;
-
-        const hashedEmail = email ? hashEmail(email) : null;
 
         const tracking = await getClientTracking({
             conversationId: conversation_id,
         });
 
+        console.log("[sendGoogleEvents] client tracking loaded", {
+            conversation_id,
+            client_id: tracking?.id ?? null,
+            has_gclid: Boolean(tracking?.gclid),
+            has_gbraid: Boolean(tracking?.gbraid),
+            has_wbraid: Boolean(tracking?.wbraid),
+            click_id_used: getBestClickIdName(tracking),
+        });
+
+        const sentParameters = buildGoogleSentParameters(tracking);
+
+        await updateAdEventsParameters(adEventIds, sentParameters);
+
+        console.log("[sendGoogleEvents] ad_event parameters saved", {
+            conversation_id,
+            ad_event_ids: adEventIds,
+            parameters: sentParameters,
+        });
+
         const accessToken = await getGoogleAccessToken();
 
-        const conversions = events
-            .map((event) =>
-                buildClickConversion({
-                    event,
-                    conversation_id,
-                    conversation_ended_at,
-                    tracking,
-                    hashedEmail,
-                    hashedPhone,
-                })
-            )
-            .filter(Boolean);
+        console.log("[sendGoogleEvents] google access token generated", {
+            conversation_id,
+            has_access_token: Boolean(accessToken),
+        });
 
-        if (conversions.length === 0) {
+        const results = [];
+
+        for (const account of googleAdsAccounts) {
+            console.log(`[sendGoogleEvents][${account.key}] preparing upload`, {
+                account_label: account.label,
+                customer_id: account.customerId,
+                conversation_id,
+                events: events.map((event) => ({
+                    type: event.type,
+                    google_conversion_name: event.google_conversion_name,
+                    confidence: event.confidence,
+                    occurred_at: event.occurred_at,
+                })),
+            });
+
+            const conversions = events
+                .map((event) =>
+                    buildClickConversion({
+                        event,
+                        conversation_id,
+                        conversation_ended_at,
+                        tracking,
+                        account,
+                    })
+                )
+                .filter(Boolean);
+
+            console.log(`[sendGoogleEvents][${account.key}] conversions built`, {
+                account_label: account.label,
+                customer_id: account.customerId,
+                conversions_count: conversions.length,
+                conversions,
+            });
+
+            if (conversions.length === 0) {
+                console.log(`[sendGoogleEvents][${account.key}] skipped account`, {
+                    account_label: account.label,
+                    customer_id: account.customerId,
+                    reason: "No valid Google conversion identifiers",
+                    has_gclid: Boolean(tracking?.gclid),
+                    has_gbraid: Boolean(tracking?.gbraid),
+                    has_wbraid: Boolean(tracking?.wbraid),
+                });
+
+                results.push({
+                    account: account.key,
+                    label: account.label,
+                    customer_id: account.customerId,
+                    ok: false,
+                    skipped: true,
+                    reason: "No valid Google conversion identifiers",
+                });
+
+                continue;
+            }
+
+            const payload = {
+                conversions,
+                partialFailure: true,
+                validateOnly: false,
+            };
+
+            console.log(`[sendGoogleEvents][${account.key}] sending request`, {
+                account_label: account.label,
+                customer_id: account.customerId,
+                endpoint: `customers/${account.customerId}:uploadClickConversions`,
+                payload,
+            });
+
+            const response = await fetch(
+                `https://googleads.googleapis.com/v24/customers/${account.customerId}:uploadClickConversions`,
+                {
+                    method: "POST",
+                    headers: removeNullValues({
+                        Authorization: `Bearer ${accessToken}`,
+                        "developer-token": googleAdsDeveloperToken,
+                        "Content-Type": "application/json",
+                    }) as Record<string, string>,
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            const json = await response.json();
+
+            console.log(`[sendGoogleEvents][${account.key}] response received`, {
+                account_label: account.label,
+                customer_id: account.customerId,
+                http_ok: response.ok,
+                http_status: response.status,
+                response: json,
+            });
+
+            if (json.partialFailureError) {
+                await updateAdEventsStatus(adEventIds, "failed");
+
+                console.error(`[sendGoogleEvents][${account.key}] partial failure`, {
+                    account_label: account.label,
+                    customer_id: account.customerId,
+                    payload,
+                    response: json,
+                });
+
+                throw new Error(
+                    `Google Ads partial failure (${account.label}): ${JSON.stringify(
+                        json
+                    )}`
+                );
+            }
+
+            if (!response.ok) {
+                await updateAdEventsStatus(adEventIds, "failed");
+
+                console.error(`[sendGoogleEvents][${account.key}] API error`, {
+                    account_label: account.label,
+                    customer_id: account.customerId,
+                    status: response.status,
+                    payload,
+                    response: json,
+                });
+
+                throw new Error(
+                    `Google Ads API error (${account.label}): ${JSON.stringify(
+                        json
+                    )}`
+                );
+            }
+
+            results.push({
+                account: account.key,
+                label: account.label,
+                customer_id: account.customerId,
+                ok: true,
+                skipped: false,
+                payload,
+                response: json,
+            });
+
+            console.log(`[sendGoogleEvents][${account.key}] upload succeeded`, {
+                account_label: account.label,
+                customer_id: account.customerId,
+                results_count: json.results?.length ?? null,
+                job_id: json.jobId ?? null,
+            });
+        }
+
+        const successfulUploads = results.filter((result) => result.ok);
+
+        if (successfulUploads.length === 0) {
             await updateAdEventsStatus(adEventIds, "failed");
+
+            console.log("[sendGoogleEvents] all accounts skipped/failed", {
+                conversation_id,
+                results,
+            });
 
             return {
                 ok: false,
                 skipped: true,
-                reason: "No valid Google conversion identifiers",
+                reason: "No Google account received valid conversions",
+                results,
             };
-        }
-
-        const payload = {
-            conversions,
-            partialFailure: false,
-            validateOnly: false,
-        };
-
-        const response = await fetch(
-            `https://googleads.googleapis.com/v24/customers/${googleAdsCustomerId}:uploadClickConversions`,
-            {
-                method: "POST",
-                headers: removeNullValues({
-                    Authorization: `Bearer ${accessToken}`,
-                    "developer-token": googleAdsDeveloperToken,
-                    "login-customer-id": googleAdsLoginCustomerId,
-                    "Content-Type": "application/json",
-                }) as Record<string, string>,
-                body: JSON.stringify(payload),
-            }
-        );
-
-        const json = await response.json();
-
-        if (!response.ok) {
-            await updateAdEventsStatus(adEventIds, "failed");
-            throw new Error(`Google Ads API error: ${JSON.stringify(json)}`);
         }
 
         await updateAdEventsStatus(adEventIds, "sent");
 
+        console.log("[sendGoogleEvents] completed", {
+            conversation_id,
+            ad_event_ids: adEventIds,
+            successful_uploads: successfulUploads.length,
+            total_accounts: googleAdsAccounts.length,
+            results,
+        });
+
         return {
             ok: true,
             skipped: false,
-            payload,
-            response: json,
+            results,
         };
     } catch (error) {
         await updateAdEventsStatus(adEventIds, "failed");
+
+        console.error("[sendGoogleEvents] failed", {
+            conversation_id,
+            ad_event_ids: adEventIds,
+            error,
+        });
+
         throw error;
     }
 }
@@ -143,28 +334,22 @@ function buildClickConversion({
                                   conversation_id,
                                   conversation_ended_at,
                                   tracking,
-                                  hashedEmail,
-                                  hashedPhone,
+                                  account,
                               }: {
     event: DerivedAdEvent;
     conversation_id: string;
     conversation_ended_at: string;
     tracking: ClientTracking | null;
-    hashedEmail: string | null;
-    hashedPhone: string | null;
+    account: GoogleAdsAccount;
 }) {
     const conversionAction = getConversionActionResourceName(
-        event.google_conversion_name
+        event.google_conversion_name,
+        account
     );
 
     const clickId = getBestClickId(tracking);
 
-    const userIdentifiers = buildUserIdentifiers({
-        hashedEmail,
-        hashedPhone,
-    });
-
-    if (!clickId && userIdentifiers.length === 0) {
+    if (!clickId) {
         return null;
     }
 
@@ -174,35 +359,7 @@ function buildClickConversion({
         orderId: `${conversation_id}:${event.type}`,
 
         ...clickId,
-
-        ...(userIdentifiers.length > 0 ? { userIdentifiers } : {}),
     });
-}
-
-function buildUserIdentifiers({
-                                  hashedEmail,
-                                  hashedPhone,
-                              }: {
-    hashedEmail: string | null;
-    hashedPhone: string | null;
-}) {
-    const identifiers = [];
-
-    if (hashedEmail) {
-        identifiers.push({
-            hashedEmail,
-            userIdentifierSource: "FIRST_PARTY",
-        });
-    }
-
-    if (hashedPhone) {
-        identifiers.push({
-            hashedPhoneNumber: hashedPhone,
-            userIdentifierSource: "FIRST_PARTY",
-        });
-    }
-
-    return identifiers;
 }
 
 function getBestClickId(tracking: ClientTracking | null) {
@@ -223,6 +380,14 @@ function getBestClickId(tracking: ClientTracking | null) {
             wbraid: tracking.wbraid,
         };
     }
+
+    return null;
+}
+
+function getBestClickIdName(tracking: ClientTracking | null) {
+    if (tracking?.gclid) return "gclid";
+    if (tracking?.gbraid) return "gbraid";
+    if (tracking?.wbraid) return "wbraid";
 
     return null;
 }
@@ -328,22 +493,25 @@ async function updateAdEventsStatus(
 }
 
 function getConversionActionResourceName(
-    conversionName: DerivedAdEvent["google_conversion_name"]
+    conversionName: DerivedAdEvent["google_conversion_name"],
+    account: GoogleAdsAccount
 ) {
     const value =
         conversionName === "qualified_lead"
-            ? qualifiedLeadConversionAction
-            : bookAppointmentConversionAction;
+            ? account.qualifiedLeadConversionAction
+            : account.bookAppointmentConversionAction;
 
     if (!value) {
-        throw new Error(`Missing Google Ads conversion action: ${conversionName}`);
+        throw new Error(
+            `Missing Google Ads conversion action for ${account.label}: ${conversionName}`
+        );
     }
 
     if (value.startsWith("customers/")) {
         return value;
     }
 
-    return `customers/${googleAdsCustomerId}/conversionActions/${value}`;
+    return `customers/${account.customerId}/conversionActions/${value}`;
 }
 
 function validateGoogleEnv() {
@@ -352,16 +520,27 @@ function validateGoogleEnv() {
         ["GOOGLE_ADS_CLIENT_SECRET", googleAdsClientSecret],
         ["GOOGLE_ADS_REFRESH_TOKEN", googleAdsRefreshToken],
         ["GOOGLE_ADS_DEVELOPER_TOKEN", googleAdsDeveloperToken],
-        ["GOOGLE_ADS_CUSTOMER_ID", googleAdsCustomerId],
-        [
-            "GOOGLE_ADS_CONVERSION_ACTION_QUALIFIED_LEAD",
-            qualifiedLeadConversionAction,
-        ],
-        [
-            "GOOGLE_ADS_CONVERSION_ACTION_BOOK_APPOINTMENT",
-            bookAppointmentConversionAction,
-        ],
     ].filter(([, value]) => !value);
+
+    for (const account of googleAdsAccounts) {
+        if (!account.customerId) {
+            missing.push([`${account.key}.customerId`, account.customerId]);
+        }
+
+        if (!account.qualifiedLeadConversionAction) {
+            missing.push([
+                `${account.key}.qualifiedLeadConversionAction`,
+                account.qualifiedLeadConversionAction,
+            ]);
+        }
+
+        if (!account.bookAppointmentConversionAction) {
+            missing.push([
+                `${account.key}.bookAppointmentConversionAction`,
+                account.bookAppointmentConversionAction,
+            ]);
+        }
+    }
 
     if (missing.length > 0) {
         throw new Error(
@@ -370,34 +549,6 @@ function validateGoogleEnv() {
                 .join(", ")}`
         );
     }
-}
-
-function hashEmail(email: string) {
-    const normalized = email.trim().toLowerCase();
-
-    if (!normalized || !normalized.includes("@")) return null;
-
-    return hash(normalized);
-}
-
-function hash(value: string) {
-    return crypto.createHash("sha256").update(value).digest("hex");
-}
-
-function normalizeBrazilPhone(phone: string) {
-    const digits = phone.replace(/\D/g, "");
-
-    if (!digits) return null;
-
-    if (digits.startsWith("55")) {
-        return digits;
-    }
-
-    if (digits.length === 10 || digits.length === 11) {
-        return `55${digits}`;
-    }
-
-    return digits;
 }
 
 function normalizeCustomerId(value: string | undefined) {
@@ -411,7 +562,14 @@ function toGoogleAdsDateTime(value: string) {
         return toGoogleAdsDateTime(new Date().toISOString());
     }
 
-    return date.toISOString().replace("T", " ").replace(".000Z", "+00:00");
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(date.getUTCDate()).padStart(2, "0");
+    const hh = String(date.getUTCHours()).padStart(2, "0");
+    const min = String(date.getUTCMinutes()).padStart(2, "0");
+    const ss = String(date.getUTCSeconds()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}+00:00`;
 }
 
 function removeNullValues<T extends Record<string, unknown>>(object: T) {
@@ -421,5 +579,44 @@ function removeNullValues<T extends Record<string, unknown>>(object: T) {
 
             return true;
         })
+    );
+}
+
+async function updateAdEventsParameters(
+    adEventIds: string[],
+    parameters: string[]
+) {
+    if (adEventIds.length === 0) return;
+
+    const { error } = await supabase
+        .from("ad_events")
+        .update({
+            parameters,
+            updated_at: new Date().toISOString(),
+        })
+        .in("id", adEventIds);
+
+    if (error) {
+        throw error;
+    }
+}
+
+function buildGoogleSentParameters(tracking: ClientTracking | null) {
+    return uniqueStrings([
+        "conversion_action",
+        "conversion_date_time",
+        "order_id",
+        "partial_failure",
+        "validate_only",
+
+        tracking?.gclid ? "gclid" : null,
+        tracking?.gbraid ? "gbraid" : null,
+        tracking?.wbraid ? "wbraid" : null,
+    ]);
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+    return Array.from(
+        new Set(values.filter((value): value is string => Boolean(value)))
     );
 }

@@ -38,6 +38,8 @@ type PanelData = {
         started_at: string;
         ended_at: string;
         attendant_chat_name: string | null;
+        tunnel: string | null;
+        origin: string | null;
     };
     client: {
         name: string | null;
@@ -510,6 +512,8 @@ function DetailsTab({ data }: { data: PanelData }) {
                             "Atendente",
                             data.conversation.attendant_chat_name ?? "Sem atendente",
                         ],
+                        ["Túnel", data.conversation.tunnel ?? "Não definido"],
+                        ["Origem", data.conversation.origin ?? "Não definido"],
                     ]}
                 />
             </SummaryCard>

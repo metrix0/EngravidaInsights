@@ -115,6 +115,16 @@ export async function sendMetaEvents({
             };
         }
 
+        const trackingCustomData = buildTrackingCustomData(tracking);
+
+        const sentParameters = buildMetaSentParameters({
+            hashedPhone,
+            hashedEmail,
+            tracking,
+        });
+
+        await updateAdEventsParameters(adEventIds, sentParameters);
+
         const payload = {
             data: events.map((event) => ({
                 event_name: event.meta_event_name,
@@ -130,7 +140,7 @@ export async function sendMetaEvents({
                     conversation_id,
                     confidence: event.confidence,
 
-                    ...buildTrackingCustomData(tracking),
+                    ...trackingCustomData,
                 },
             })),
 
@@ -544,4 +554,82 @@ function normalizeBrazilState(value: string | null) {
     }
 
     return null;
+}
+
+async function updateAdEventsParameters(
+    adEventIds: string[],
+    parameters: string[]
+) {
+    if (adEventIds.length === 0) return;
+
+    const { error } = await supabase
+        .from("ad_events")
+        .update({
+            parameters,
+            updated_at: new Date().toISOString(),
+        })
+        .in("id", adEventIds);
+
+    if (error) {
+        throw error;
+    }
+}
+
+function buildMetaSentParameters({
+                                     hashedPhone,
+                                     hashedEmail,
+                                     tracking,
+                                 }: {
+    hashedPhone: string | null;
+    hashedEmail: string | null;
+    tracking: ClientTracking | null;
+}) {
+    const fbc =
+        tracking?.fbc ??
+        buildFbcFromFbclid(
+            tracking?.fbclid ?? null,
+            tracking?.tracking_updated_at ?? tracking?.created_at ?? null
+        );
+
+    const parsedName = parseFullName(tracking?.name ?? null);
+
+    const normalizedState = normalizeBrazilState(tracking?.state ?? null);
+    const normalizedCountry = normalizeCountry(tracking?.country ?? null);
+
+    return uniqueStrings([
+        hashedPhone ? "phone" : null,
+        hashedEmail ? "email" : null,
+
+        tracking?.external_contact_id ? "external_id" : null,
+
+        parsedName.firstName ? "first_name" : null,
+        parsedName.lastName ? "last_name" : null,
+
+        tracking?.client_ip_address ? "client_ip_address" : null,
+        tracking?.client_user_agent ? "client_user_agent" : null,
+
+        normalizedState ? "state" : null,
+        normalizedCountry ? "country" : null,
+
+        fbc ? "fbc" : null,
+        tracking?.fbp ? "fbp" : null,
+        tracking?.ctwa_clid ? "ctwa_clid" : null,
+
+        tracking?.fbclid ? "fbclid" : null,
+        tracking?.gclid ? "gclid" : null,
+        tracking?.gbraid ? "gbraid" : null,
+        tracking?.wbraid ? "wbraid" : null,
+
+        tracking?.utm_source ? "utm_source" : null,
+        tracking?.utm_medium ? "utm_medium" : null,
+        tracking?.utm_campaign ? "utm_campaign" : null,
+        tracking?.utm_content ? "utm_content" : null,
+        tracking?.utm_term ? "utm_term" : null,
+    ]);
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+    return Array.from(
+        new Set(values.filter((value): value is string => Boolean(value)))
+    );
 }

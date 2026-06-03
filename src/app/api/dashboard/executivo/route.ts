@@ -14,6 +14,8 @@ export async function GET(request: Request) {
     const unitIds = parseIds(searchParams.get("unit_ids"));
     const serviceIds = parseIds(searchParams.get("service_ids"));
     const attendantIds = parseIds(searchParams.get("attendant_ids"));
+    const tunnelValues = parseIds(searchParams.get("tunnels"));
+    const originValues = parseIds(searchParams.get("origins"));
 
     const dateRange = getDateRange({
         days,
@@ -31,6 +33,8 @@ export async function GET(request: Request) {
         unitIds,
         serviceIds,
         attendantIds,
+        tunnelValues,
+        originValues,
     });
 
     if (currentError) {
@@ -48,6 +52,8 @@ export async function GET(request: Request) {
         unitIds,
         serviceIds,
         attendantIds,
+        tunnelValues,
+        originValues,
     });
 
     if (previousError) {
@@ -65,6 +71,8 @@ export async function GET(request: Request) {
             unit_ids: unitIds,
             service_ids: serviceIds,
             attendant_ids: attendantIds,
+            tunnel_values: tunnelValues,
+            origin_values: originValues,
         },
 
         kpis: buildKpis(analyses),
@@ -89,6 +97,8 @@ async function fetchAnalyses({
                                  unitIds,
                                  serviceIds,
                                  attendantIds,
+                                 tunnelValues,
+                                 originValues,
                              }: {
     dateRange: {
         start: Date;
@@ -97,7 +107,38 @@ async function fetchAnalyses({
     unitIds: string[];
     serviceIds: string[];
     attendantIds: string[];
+    tunnelValues: string[];
+    originValues: string[];
 }) {
+    const needsAttributionFilter =
+        tunnelValues.length > 0 || originValues.length > 0;
+
+    let analysisIdsFromConversations: string[] | null = null;
+
+    if (needsAttributionFilter) {
+        const attributionMatch = await getAnalysisIdsMatchingTunnelOrigin({
+            dateRange,
+            tunnelValues,
+            originValues,
+        });
+
+        if (attributionMatch.error) {
+            return {
+                analyses: [],
+                error: attributionMatch.error,
+            };
+        }
+
+        analysisIdsFromConversations = attributionMatch.analysisIds;
+
+        if (analysisIdsFromConversations.length === 0) {
+            return {
+                analyses: [],
+                error: null,
+            };
+        }
+    }
+
     let query = supabase
         .from("conversation_analysis")
         .select(`
@@ -130,6 +171,10 @@ async function fetchAnalyses({
         query = query.in("attendant_id", attendantIds);
     }
 
+    if (analysisIdsFromConversations) {
+        query = query.in("id", analysisIdsFromConversations);
+    }
+
     const { data, error } = await query;
 
     return {
@@ -137,6 +182,7 @@ async function fetchAnalyses({
         error,
     };
 }
+
 
 function buildKpis(analyses: any[]) {
     const total = analyses.length;
@@ -458,4 +504,68 @@ function getPreviousDateRange(dateRange: { start: Date; end: Date }) {
         start: previousStart,
         end: previousEnd,
     };
+}
+
+const NULL_FILTER_VALUE = "__NULL__";
+
+async function getAnalysisIdsMatchingTunnelOrigin({
+                                                      dateRange,
+                                                      tunnelValues,
+                                                      originValues,
+                                                  }: {
+    dateRange: {
+        start: Date;
+        end: Date;
+    };
+    tunnelValues: string[];
+    originValues: string[];
+}) {
+    const { data, error } = await supabase
+        .from("conversations")
+        .select("conversation_analysis_id, tunnel, origin, started_at")
+        .not("conversation_analysis_id", "is", null)
+        .gte("started_at", dateRange.start.toISOString())
+        .lte("started_at", dateRange.end.toISOString())
+        .limit(5000);
+
+    if (error) {
+        return {
+            analysisIds: [],
+            error,
+        };
+    }
+
+    const filtered = (data ?? []).filter((conversation) => {
+        const tunnel = emptyToNull(conversation.tunnel);
+        const origin = emptyToNull(conversation.origin);
+
+        const matchesTunnel =
+            tunnelValues.length === 0 ||
+            tunnelValues.includes(tunnel ?? NULL_FILTER_VALUE);
+
+        const matchesOrigin =
+            originValues.length === 0 ||
+            originValues.includes(origin ?? NULL_FILTER_VALUE);
+
+        return matchesTunnel && matchesOrigin;
+    });
+
+    return {
+        analysisIds: Array.from(
+            new Set(
+                filtered
+                    .map((conversation) => conversation.conversation_analysis_id)
+                    .filter(Boolean)
+            )
+        ),
+        error: null,
+    };
+}
+
+function emptyToNull(value: unknown) {
+    if (value === null || value === undefined) return null;
+
+    const trimmed = String(value).trim();
+
+    return trimmed ? trimmed : null;
 }

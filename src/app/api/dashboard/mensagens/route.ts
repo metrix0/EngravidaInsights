@@ -19,6 +19,8 @@ export async function GET(request: Request) {
     const unitIds = parseIds(searchParams.get("unit_ids"));
     const serviceIds = parseIds(searchParams.get("service_ids"));
     const attendantIds = parseIds(searchParams.get("attendant_ids"));
+    const tunnelValues = parseIds(searchParams.get("tunnels"));
+    const originValues = parseIds(searchParams.get("origins"));
 
     const conversationGoals = parseIds(searchParams.get("conversation_goals"));
     const results = parseIds(searchParams.get("results"));
@@ -61,7 +63,10 @@ export async function GET(request: Request) {
         );
     }
 
-    const conversations = conversationsData ?? [];
+    const conversations = filterByTunnelAndOrigin(conversationsData ?? [], {
+        tunnelValues,
+        originValues,
+    });
 
     if (conversations.length === 0) {
         return NextResponse.json({
@@ -294,6 +299,42 @@ async function fetchAnalysesByIds(ids: string[]) {
     }
 
     return { data: rows, error: null };
+}
+
+const NULL_FILTER_VALUE = "__NULL__";
+
+function filterByTunnelAndOrigin(
+    conversations: any[],
+    {
+        tunnelValues,
+        originValues,
+    }: {
+        tunnelValues: string[];
+        originValues: string[];
+    }
+) {
+    return conversations.filter((conversation) => {
+        const tunnel = emptyToNull(conversation.tunnel);
+        const origin = emptyToNull(conversation.origin);
+
+        const matchesTunnel =
+            tunnelValues.length === 0 ||
+            tunnelValues.includes(tunnel ?? NULL_FILTER_VALUE);
+
+        const matchesOrigin =
+            originValues.length === 0 ||
+            originValues.includes(origin ?? NULL_FILTER_VALUE);
+
+        return matchesTunnel && matchesOrigin;
+    });
+}
+
+function emptyToNull(value: unknown) {
+    if (value === null || value === undefined) return null;
+
+    const trimmed = String(value).trim();
+
+    return trimmed ? trimmed : null;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

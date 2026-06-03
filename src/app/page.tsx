@@ -40,7 +40,7 @@ import {
     HorizontalScroller, CalendarButton, ButtonGroup, InfoTooltip
 } from "@/components";
 
-type Period = "7" | "30" | "90";
+type Period = "yesterday" | "7" | "30" | "90";
 
 type DateRange = {
     start: string | null;
@@ -54,11 +54,13 @@ export default function ExecutiveDashboardPage() {
     const [unitIds, setUnitIds] = useState<string[]>([]);
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
+    const [tunnelValues, setTunnelValues] = useState<string[]>([]);
+    const [originValues, setOriginValues] = useState<string[]>([]);
 
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const [period, setPeriod] = useState<Period | null>("7");
+    const [period, setPeriod] = useState<Period | null>("yesterday");
 
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
@@ -67,7 +69,9 @@ export default function ExecutiveDashboardPage() {
 
     useEffect(() => {
         async function loadFilters() {
-            const response = await fetch("/api/dashboard/filters?entities=units,attendants,services");
+            const response = await fetch(
+                "/api/dashboard/filters?entities=units,attendants,services,tunnels,origins"
+            );
             const json: FiltersResponse = await response.json();
 
             setFilters(json);
@@ -86,12 +90,17 @@ export default function ExecutiveDashboardPage() {
 
             const params = new URLSearchParams();
 
-            if (selectedRange.start) {
-                params.set("start_date", selectedRange.start);
-                params.set("end_date", selectedRange.end ?? selectedRange.start);
-            } else {
-                params.set("days", period ?? "7");
-            }
+if (selectedRange.start) {
+    params.set("start_date", selectedRange.start);
+    params.set("end_date", selectedRange.end ?? selectedRange.start);
+} else if (period === "yesterday") {
+    const yesterday = getYesterdayDateString();
+
+    params.set("start_date", yesterday);
+    params.set("end_date", yesterday);
+} else {
+    params.set("days", period ?? "7");
+}
 
             if (unitIds.length > 0) {
                 params.set("unit_ids", unitIds.join(","));
@@ -105,6 +114,14 @@ export default function ExecutiveDashboardPage() {
                 params.set("service_ids", serviceIds.join(","));
             }
 
+            if (tunnelValues.length > 0) {
+                params.set("tunnels", tunnelValues.join(","));
+            }
+
+            if (originValues.length > 0) {
+                params.set("origins", originValues.join(","));
+            }
+
             const response = await fetch(`/api/dashboard/executivo?${params.toString()}`);
             const json: ExecutiveDashboardData = await response.json();
 
@@ -114,7 +131,15 @@ export default function ExecutiveDashboardPage() {
         }
 
         loadDashboard();
-    }, [unitIds, attendantIds, serviceIds, period, selectedRange]);
+    }, [
+        unitIds,
+        attendantIds,
+        serviceIds,
+        tunnelValues,
+        originValues,
+        period,
+        selectedRange,
+    ]);
 
     if (loading) {
         return (
@@ -158,6 +183,21 @@ export default function ExecutiveDashboardPage() {
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
+                    <FilterButton
+                        icon={<BarChart3 size={16} />}
+                        label="Todos os túneis"
+                        values={tunnelValues}
+                        onChange={setTunnelValues}
+                        options={(filters as any)?.tunnels ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<MapPin size={16} />}
+                        label="Todas as origens"
+                        values={originValues}
+                        onChange={setOriginValues}
+                        options={(filters as any)?.origins ?? []}
+                    />
                     <span className={"hidden"}>
                     <FilterButton
                         icon={<MapPin size={16} />}
@@ -175,6 +215,7 @@ export default function ExecutiveDashboardPage() {
                         options={filters?.attendants ?? []}
                     />
 
+<span className={"hidden"}>
                     <FilterButton
                         icon={<BarChart3 size={16} />}
                         label="Todos os serviços"
@@ -182,6 +223,7 @@ export default function ExecutiveDashboardPage() {
                         onChange={setServiceIds}
                         options={filters?.services ?? []}
                     />
+</span>
                 </div>
 
                 {isRefreshing ? (
@@ -358,23 +400,24 @@ function Header({
                         end: null,
                     });
                 }}
-                options={[
-                    { value: "7", label: "7 dias" },
-                    { value: "30", label: "30 dias" },
-                    { value: "90", label: "90 dias" },
-                ]}
+options={[
+    { value: "yesterday", label: "Ontem" },
+    { value: "7", label: "7 dias" },
+    { value: "30", label: "30 dias" },
+    { value: "90", label: "90 dias" },
+]}
             >
                 <CalendarButton
                     value={selectedRange}
                     onChange={setSelectedRange}
-                    onApply={(range) => {
-                        if (range.start) {
-                            setPeriod(null);
-                            return;
-                        }
+onApply={(range) => {
+    if (range.start) {
+        setPeriod(null);
+        return;
+    }
 
-                        setPeriod("7");
-                    }}
+    setPeriod("yesterday");
+}}
                 />
             </ButtonGroup>
         </header>
@@ -686,4 +729,15 @@ function DailyEvolutionTooltip({
             </div>
         </div>
     );
+}
+function getYesterdayDateString() {
+    const date = new Date();
+
+    date.setDate(date.getDate() - 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }

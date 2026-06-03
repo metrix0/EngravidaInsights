@@ -23,6 +23,8 @@ export async function GET(request: Request) {
 
     const unitIds = splitParam(searchParams.get("unit_ids"));
     const serviceIds = splitParam(searchParams.get("service_ids"));
+    const tunnelValues = splitParam(searchParams.get("tunnels"));
+    const originValues = splitParam(searchParams.get("origins"));
 
     const platforms = splitParam(searchParams.get("platforms")) as AdPlatform[];
     const eventTypes = splitParam(searchParams.get("event_types")) as AdEventType[];
@@ -46,6 +48,8 @@ export async function GET(request: Request) {
         platforms,
         eventTypes,
         statuses,
+        tunnelValues,
+        originValues,
     });
 
     const previousEvents = await getEvents({
@@ -55,6 +59,8 @@ export async function GET(request: Request) {
         platforms,
         eventTypes,
         statuses,
+        tunnelValues,
+        originValues,
     });
 
     const groupedRecentEvents = groupRecentEvents(currentEvents);
@@ -87,6 +93,7 @@ export async function GET(request: Request) {
             platform: event.platform,
             platforms: event.platforms,
             status: event.status,
+            parameters: event.parameters ?? [],
         })),
 
         recent_total: groupedRecentEvents.length,
@@ -107,6 +114,8 @@ type GetEventsInput = {
     platforms: AdPlatform[];
     eventTypes: AdEventType[];
     statuses: AdEventStatus[];
+    tunnelValues: string[];
+    originValues: string[];
 };
 
 async function getEvents({
@@ -116,6 +125,8 @@ async function getEvents({
                              platforms,
                              eventTypes,
                              statuses,
+                             tunnelValues,
+                             originValues,
                          }: GetEventsInput) {
     let query = supabase
         .from("ad_events")
@@ -127,10 +138,13 @@ async function getEvents({
             platform,
             status,
             event_date,
+            parameters,
             conversations!inner (
                 id,
                 unit_id,
                 service_id,
+                tunnel,
+                origin,
                 clients (
                     id,
                     name,
@@ -169,7 +183,46 @@ async function getEvents({
         throw new Error(error.message);
     }
 
-    return (data ?? []) as any[];
+    return filterByTunnelAndOrigin(data ?? [], {
+        tunnelValues,
+        originValues,
+    }) as any[];
+}
+
+const NULL_FILTER_VALUE = "__NULL__";
+
+function filterByTunnelAndOrigin(
+    events: any[],
+    {
+        tunnelValues,
+        originValues,
+    }: {
+        tunnelValues: string[];
+        originValues: string[];
+    }
+) {
+    return events.filter((event) => {
+        const tunnel = emptyToNull(event.conversations?.tunnel);
+        const origin = emptyToNull(event.conversations?.origin);
+
+        const matchesTunnel =
+            tunnelValues.length === 0 ||
+            tunnelValues.includes(tunnel ?? NULL_FILTER_VALUE);
+
+        const matchesOrigin =
+            originValues.length === 0 ||
+            originValues.includes(origin ?? NULL_FILTER_VALUE);
+
+        return matchesTunnel && matchesOrigin;
+    });
+}
+
+function emptyToNull(value: unknown) {
+    if (value === null || value === undefined) return null;
+
+    const trimmed = String(value).trim();
+
+    return trimmed ? trimmed : null;
 }
 
 function groupRecentEvents(events: any[]) {
@@ -183,6 +236,10 @@ function groupRecentEvents(events: any[]) {
             event.event_date,
         ].join("|");
 
+        const eventParameters = Array.isArray(event.parameters)
+            ? event.parameters
+            : [];
+
         const existing = grouped.get(key);
 
         if (!existing) {
@@ -194,6 +251,7 @@ function groupRecentEvents(events: any[]) {
                 event_date: event.event_date,
                 platform: event.platform,
                 platforms: [event.platform],
+                parameters: eventParameters,
                 client_name: event.conversations?.clients?.name ?? "Sem nome",
                 phone: event.conversations?.clients?.phone ?? "",
             });
@@ -206,6 +264,10 @@ function groupRecentEvents(events: any[]) {
         }
 
         existing.platform = existing.platforms.join(" + ");
+        existing.parameters = uniqueStrings([
+            ...(existing.parameters ?? []),
+            ...eventParameters,
+        ]);
     }
 
     return Array.from(grouped.values()).sort(
@@ -220,10 +282,27 @@ function buildKpis(events: any[]) {
     const sentEvents = events.filter((event) => event.status === "sent").length;
     const failedEvents = events.filter((event) => event.status === "failed").length;
 
+    const metaEvents = events.filter((event) => event.platform === "Meta Ads");
+    const googleEvents = events.filter((event) => event.platform === "Google Ads");
+
+    const fbclidEvents = metaEvents.filter((event) =>
+        hasParameter(event, "fbclid")
+    ).length;
+
+    const gclidEvents = googleEvents.filter((event) =>
+        hasParameter(event, "gclid")
+    ).length;
+
     return {
         total_events: totalEvents,
         sent_events: sentEvents,
         failed_events: failedEvents,
+
+        fbclid_events: fbclidEvents,
+        gclid_events: gclidEvents,
+
+        fbclid_rate: percentage(fbclidEvents, metaEvents.length),
+        gclid_rate: percentage(gclidEvents, googleEvents.length),
     };
 }
 
@@ -271,6 +350,16 @@ function buildByStatus(events: any[]) {
             percentage: percentage(count, totalEvents),
         };
     });
+}
+
+function hasParameter(event: any, parameter: string) {
+    if (!Array.isArray(event.parameters)) return false;
+
+    return event.parameters.includes(parameter);
+}
+
+function uniqueStrings(values: string[]) {
+    return Array.from(new Set(values.filter(Boolean)));
 }
 
 function splitParam(value: string | null) {

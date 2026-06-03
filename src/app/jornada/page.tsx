@@ -35,7 +35,7 @@ import {
     Skeleton,
 } from "@/components";
 
-type Period = "7" | "30" | "90";
+type Period = "yesterday" | "7" | "30" | "90";
 
 type DateRange = {
     start: string | null;
@@ -81,8 +81,10 @@ export default function JourneyPage() {
     const [unitIds, setUnitIds] = useState<string[]>([]);
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
+    const [tunnelValues, setTunnelValues] = useState<string[]>([]);
+    const [originValues, setOriginValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("7");
+    const [period, setPeriod] = useState<Period | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
@@ -96,7 +98,7 @@ export default function JourneyPage() {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,attendants,services"
+                    "/api/dashboard/filters?entities=units,attendants,services,tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -122,6 +124,11 @@ export default function JourneyPage() {
             if (selectedRange.start) {
                 params.set("start_date", selectedRange.start);
                 params.set("end_date", selectedRange.end ?? selectedRange.start);
+            } else if (period === "yesterday") {
+                const yesterday = getYesterdayDateString();
+
+                params.set("start_date", yesterday);
+                params.set("end_date", yesterday);
             } else {
                 params.set("days", period ?? "7");
             }
@@ -138,13 +145,40 @@ export default function JourneyPage() {
                 params.set("service_ids", serviceIds.join(","));
             }
 
+            if (tunnelValues.length > 0) {
+                params.set("tunnels", tunnelValues.join(","));
+            }
+
+            if (originValues.length > 0) {
+                params.set("origins", originValues.join(","));
+            }
+
             try {
                 const response = await fetch(
                     `/api/dashboard/jornada?${params.toString()}`
                 );
-                const json: JourneyDashboardData = await response.json();
 
-                setData(json);
+                const json = await response.json();
+
+                if (!response.ok) {
+                    console.error("[jornada] failed to load dashboard", json);
+
+                    setData({
+                        journey_funnel: [],
+                        dropoff_moments: [],
+                        intent_paths: [],
+                        objections: [],
+                    });
+
+                    return;
+                }
+
+                setData({
+                    journey_funnel: json.journey_funnel ?? [],
+                    dropoff_moments: json.dropoff_moments ?? [],
+                    intent_paths: json.intent_paths ?? [],
+                    objections: json.objections ?? [],
+                });
             } finally {
                 setLoadingData(false);
                 setIsRefreshing(false);
@@ -152,7 +186,15 @@ export default function JourneyPage() {
         }
 
         loadData();
-    }, [unitIds, attendantIds, serviceIds, period, selectedRange]);
+    }, [
+        unitIds,
+        attendantIds,
+        serviceIds,
+        tunnelValues,
+        originValues,
+        period,
+        selectedRange,
+    ]);
 
     if (loadingFilters || loadingData) {
         return (
@@ -208,12 +250,30 @@ export default function JourneyPage() {
                         options={filters?.attendants ?? []}
                     />
 
+                    <span className={"hidden"}>
                     <FilterButton
                         icon={<BarChart3 size={16} />}
                         label="Todos os serviços"
                         values={serviceIds}
                         onChange={setServiceIds}
                         options={filters?.services ?? []}
+                    />
+</span>
+
+                    <FilterButton
+                        icon={<BarChart3 size={16} />}
+                        label="Todos os túneis"
+                        values={tunnelValues}
+                        onChange={setTunnelValues}
+                        options={(filters as any)?.tunnels ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<MapPin size={16} />}
+                        label="Todas as origens"
+                        values={originValues}
+                        onChange={setOriginValues}
+                        options={(filters as any)?.origins ?? []}
                     />
                 </div>
 
@@ -270,6 +330,7 @@ function Header({
                     });
                 }}
                 options={[
+                    { value: "yesterday", label: "Ontem" },
                     { value: "7", label: "7 dias" },
                     { value: "30", label: "30 dias" },
                     { value: "90", label: "90 dias" },
@@ -284,7 +345,7 @@ function Header({
                             return;
                         }
 
-                        setPeriod("7");
+                        setPeriod("yesterday");
                     }}
                 />
             </ButtonGroup>
@@ -670,4 +731,15 @@ function IntentPathsTooltip({
             </div>
         </div>
     );
+}
+function getYesterdayDateString() {
+    const date = new Date();
+
+    date.setDate(date.getDate() - 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }

@@ -1,12 +1,12 @@
 // src/app/eventos/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState, useRef } from "react";
 import {
     AlertTriangle,
     BarChart3,
     Calendar,
-    CheckCircle2, ChevronLeft,
+    ChevronLeft,
     ChevronRight,
     HelpCircle,
     MapPin,
@@ -54,9 +54,9 @@ import {
 } from "@/components";
 
 import AdvancedFilterButton from "@/components/ui/AdvancedFilterButton";
-import {ConversationPanel} from "@/components/conversations/ConversationPanel";
+import { ConversationPanel } from "@/components/conversations/ConversationPanel";
 
-type Period = "7" | "30" | "90";
+type Period = "yesterday" | "7" | "30" | "90";
 
 type DateRange = {
     start: string | null;
@@ -68,11 +68,19 @@ type EventsDashboardData = {
         total_events: number;
         sent_events: number;
         failed_events: number;
+        fbclid_events: number;
+        gclid_events: number;
+        fbclid_rate: number;
+        gclid_rate: number;
     };
     previous_kpis: {
         total_events: number;
         sent_events: number;
         failed_events: number;
+        fbclid_events: number;
+        gclid_events: number;
+        fbclid_rate: number;
+        gclid_rate: number;
     };
     by_platform: {
         platform: AdPlatform;
@@ -109,8 +117,9 @@ type EventsDashboardData = {
         client_name: string;
         phone: string;
         event_type: AdEventType;
-        platform: AdPlatform;
+        platform: string;
         status: AdEventStatus;
+        parameters: string[];
     }[];
     recent_total: number;
     page: number;
@@ -146,16 +155,18 @@ export default function EventsPage() {
     const [eventValues, setEventValues] = useState<string[]>([]);
     const [platformValues, setPlatformValues] = useState<string[]>([]);
     const [statusValues, setStatusValues] = useState<string[]>([]);
+    const [tunnelValues, setTunnelValues] = useState<string[]>([]);
+    const [originValues, setOriginValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("7");
+    const [period, setPeriod] = useState<Period | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
     });
 
-    const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-        null
-    );
+    const [selectedConversationId, setSelectedConversationId] = useState<
+        string | null
+    >(null);
 
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -171,6 +182,8 @@ export default function EventsPage() {
         platformValues,
         eventValues,
         statusValues,
+        tunnelValues,
+        originValues,
         period,
         selectedRange,
     ]);
@@ -179,7 +192,7 @@ export default function EventsPage() {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,services"
+                    "/api/dashboard/filters?entities=units,services,tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -205,12 +218,17 @@ export default function EventsPage() {
             params.set("page", String(currentPage));
             params.set("page_size", String(PAGE_SIZE));
 
-            if (selectedRange.start) {
-                params.set("start_date", selectedRange.start);
-                params.set("end_date", selectedRange.end ?? selectedRange.start);
-            } else {
-                params.set("days", period ?? "7");
-            }
+if (selectedRange.start) {
+    params.set("start_date", selectedRange.start);
+    params.set("end_date", selectedRange.end ?? selectedRange.start);
+} else if (period === "yesterday") {
+    const yesterday = getYesterdayDateString();
+
+    params.set("start_date", yesterday);
+    params.set("end_date", yesterday);
+} else {
+    params.set("days", period ?? "7");
+}
 
             if (unitIds.length > 0) {
                 params.set("unit_ids", unitIds.join(","));
@@ -230,6 +248,14 @@ export default function EventsPage() {
 
             if (statusValues.length > 0) {
                 params.set("statuses", statusValues.join(","));
+            }
+
+            if (tunnelValues.length > 0) {
+                params.set("tunnels", tunnelValues.join(","));
+            }
+
+            if (originValues.length > 0) {
+                params.set("origins", originValues.join(","));
             }
 
             try {
@@ -253,6 +279,8 @@ export default function EventsPage() {
         platformValues,
         eventValues,
         statusValues,
+        tunnelValues,
+        originValues,
         period,
         selectedRange,
     ]);
@@ -294,21 +322,40 @@ export default function EventsPage() {
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
-                    <span className={"hidden"}>
-                    <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as unidades"
-                        values={unitIds}
-                        onChange={setUnitIds}
-                        options={filters?.units ?? []}
-                    /></span>
+    <span className="hidden">
+        <FilterButton
+            icon={<MapPin size={16} />}
+            label="Todas as unidades"
+            values={unitIds}
+            onChange={setUnitIds}
+            options={filters?.units ?? []}
+        />
+    </span>
+
+                    <span className="hidden">
+        <FilterButton
+            icon={<BarChart3 size={16} />}
+            label="Todos os serviços"
+            values={serviceIds}
+            onChange={setServiceIds}
+            options={filters?.services ?? []}
+        />
+    </span>
 
                     <FilterButton
                         icon={<BarChart3 size={16} />}
-                        label="Todos os serviços"
-                        values={serviceIds}
-                        onChange={setServiceIds}
-                        options={filters?.services ?? []}
+                        label="Todos os túneis"
+                        values={tunnelValues}
+                        onChange={setTunnelValues}
+                        options={(filters as any)?.tunnels ?? []}
+                    />
+
+                    <FilterButton
+                        icon={<MapPin size={16} />}
+                        label="Todas as origens"
+                        values={originValues}
+                        onChange={setOriginValues}
+                        options={(filters as any)?.origins ?? []}
                     />
 
                     <AdvancedFilterButton
@@ -356,7 +403,7 @@ export default function EventsPage() {
                         <section className="mb-6 grid grid-cols-[1.8fr_0.8fr_0.8fr] gap-5">
                             <EventsByDayCard data={data} />
                             <EventsByTypeCard data={data} />
-                            <SendStatusCard data={data} />
+                            <ClickIdRatesCard data={data} />
                         </section>
 
                         <RecentEventsCard
@@ -368,6 +415,7 @@ export default function EventsPage() {
                     </div>
                 )}
             </section>
+
             <ConversationPanel
                 conversationId={selectedConversationId}
                 onClose={() => setSelectedConversationId(null)}
@@ -408,23 +456,24 @@ function Header({
                         end: null,
                     });
                 }}
-                options={[
-                    { value: "7", label: "7 dias" },
-                    { value: "30", label: "30 dias" },
-                    { value: "90", label: "90 dias" },
-                ]}
+options={[
+    { value: "yesterday", label: "Ontem" },
+    { value: "7", label: "7 dias" },
+    { value: "30", label: "30 dias" },
+    { value: "90", label: "90 dias" },
+]}
             >
                 <CalendarButton
                     value={selectedRange}
                     onChange={setSelectedRange}
-                    onApply={(range) => {
-                        if (range.start) {
-                            setPeriod(null);
-                            return;
-                        }
+onApply={(range) => {
+    if (range.start) {
+        setPeriod(null);
+        return;
+    }
 
-                        setPeriod("7");
-                    }}
+    setPeriod("yesterday");
+}}
                 />
             </ButtonGroup>
         </header>
@@ -432,16 +481,6 @@ function Header({
 }
 
 function KpiSection({ data }: { data: EventsDashboardData }) {
-    const platformKpis = AD_PLATFORMS.map((platform) => {
-        const item = data.by_platform.find(
-            (platformItem) => platformItem.platform === platform
-        );
-
-        return {
-            platform,
-            value: item?.count ?? 0,
-        };
-    });
 
     return (
         <section className="mb-6 grid grid-cols-1 gap-5">
@@ -456,22 +495,48 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
                         color="purple"
                     />
                 </div>
+                <div className="min-w-[260px]">
+                    <KpiCard
+                        icon={<FaMeta size={26} className="text-blue-600" />}
+                        label="Meta Ads"
+                        currentValue={getPlatformCount(data, "Meta Ads")}
+                        previousValue={getPreviousPlatformCount(data, "Meta Ads")}
+                        formatter={(value) => value.toLocaleString("pt-BR")}
+                        color="blue"
+                    />
+                </div>
+                {/*<div className="min-w-[260px]">*/}
+                {/*    <KpiCard*/}
+                {/*        icon={<FaMeta size={26} className="text-blue-600" />}*/}
+                {/*        label="FBClid"*/}
+                {/*        currentValue={data.kpis.fbclid_events}*/}
+                {/*        previousValue={data.previous_kpis.fbclid_events}*/}
+                {/*        formatter={(value) => value.toLocaleString("pt-BR")}*/}
+                {/*        color="blue"*/}
+                {/*    />*/}
+                {/*</div>*/}
 
-                {platformKpis.map((item) => (
-                    <div key={item.platform} className="min-w-[260px]">
-                        <KpiCard
-                            icon={<PlatformIcon platform={item.platform} />}
-                            label={AD_PLATFORM_LABELS[item.platform]}
-                            currentValue={item.value}
-                            previousValue={getPreviousPlatformCount(
-                                data,
-                                item.platform
-                            )}
-                            formatter={(value) => value.toLocaleString("pt-BR")}
-                            color={item.platform === "Google Ads" ? "orange" : "blue"}
-                        />
-                    </div>
-                ))}
+                <div className="min-w-[260px]">
+                    <KpiCard
+                        icon={<FaGoogle size={24} className="text-amber-600" />}
+                        label="Google Ads"
+                        currentValue={getPlatformCount(data, "Google Ads")}
+                        previousValue={getPreviousPlatformCount(data, "Google Ads")}
+                        formatter={(value) => value.toLocaleString("pt-BR")}
+                        color="orange"
+                    />
+                </div>
+
+                {/*<div className="min-w-[260px]">*/}
+                {/*    <KpiCard*/}
+                {/*        icon={<FaGoogle size={24} className="text-amber-600" />}*/}
+                {/*        label="GClid"*/}
+                {/*        currentValue={data.kpis.gclid_events}*/}
+                {/*        previousValue={data.previous_kpis.gclid_events}*/}
+                {/*        formatter={(value) => value.toLocaleString("pt-BR")}*/}
+                {/*        color="orange"*/}
+                {/*    />*/}
+                {/*</div>*/}
 
                 <div className="min-w-[260px]">
                     <KpiCard
@@ -480,7 +545,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
                         currentValue={getTypeCount(data, "lead")}
                         previousValue={getPreviousTypeCount(data, "lead")}
                         formatter={(value) => value.toLocaleString("pt-BR")}
-                        color="green"
+                        color="pink"
                     />
                 </div>
 
@@ -498,7 +563,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
                 <div className="min-w-[260px]">
                     <KpiCard
                         icon={<AlertTriangle size={26} />}
-                        label="Falhas"
+                        label="Falhas no envio"
                         currentValue={data.kpis.failed_events}
                         previousValue={data.previous_kpis.failed_events}
                         formatter={(value) => value.toLocaleString("pt-BR")}
@@ -641,6 +706,88 @@ function EventsByTypeCard({ data }: { data: EventsDashboardData }) {
     );
 }
 
+function ClickIdRatesCard({ data }: { data: EventsDashboardData }) {
+    return (
+        <Card>
+            <div className="mb-5 flex items-center gap-2">
+                <h2 className="text-lg font-bold">Parâmetros de clique</h2>
+
+                <InfoTooltip text="% de eventos Meta com fbclid e % de eventos Google com gclid.">
+                    <HelpCircle size={16} className="text-slate-400" />
+                </InfoTooltip>
+            </div>
+
+            <div className="space-y-4">
+                <ClickIdRateBox
+                    icon={<FaMeta size={18} />}
+                    label="% FBClid"
+                    value={data.kpis.fbclid_rate}
+                    count={data.kpis.fbclid_events}
+                    colorClass="text-blue-600"
+                    barClass="bg-blue-600"
+                    bgClass="bg-blue-50"
+                />
+
+                <ClickIdRateBox
+                    icon={<FaGoogle size={17} />}
+                    label="% GClid"
+                    value={data.kpis.gclid_rate}
+                    count={data.kpis.gclid_events}
+                    colorClass="text-amber-600"
+                    barClass="bg-amber-500"
+                    bgClass="bg-amber-50"
+                />
+            </div>
+        </Card>
+    );
+}
+
+function ClickIdRateBox({
+                            icon,
+                            label,
+                            value,
+                            count,
+                            colorClass,
+                            barClass,
+                            bgClass,
+                        }: {
+    icon: ReactNode;
+    label: string;
+    value: number;
+    count: number;
+    colorClass: string;
+    barClass: string;
+    bgClass: string;
+}) {
+    return (
+        <div className={`rounded-2xl ${bgClass} p-4`}>
+            <div className="mb-3 flex items-center justify-between">
+                <div className={`flex items-center gap-2 text-sm font-bold ${colorClass}`}>
+                    {icon}
+                    <span>{label}</span>
+                </div>
+
+                <span className="text-xs font-semibold text-slate-500">
+                    {count.toLocaleString("pt-BR")} eventos
+                </span>
+            </div>
+
+            <div className="mb-2 flex items-end justify-between">
+                <span className="text-3xl font-bold text-slate-950">
+                    {value}%
+                </span>
+            </div>
+
+            <div className="h-2 overflow-hidden rounded-full bg-white/80">
+                <div
+                    className={`h-full rounded-full ${barClass}`}
+                    style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+                />
+            </div>
+        </div>
+    );
+}
+
 function SendStatusCard({ data }: { data: EventsDashboardData }) {
     return (
         <Card>
@@ -720,13 +867,14 @@ function RecentEventsCard({
                 <h2 className="text-lg font-bold">Eventos recentes</h2>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-100">
-                <div className="grid grid-cols-[1fr_1.15fr_1fr_1fr_1fr_0.9fr_0.4fr] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+            <div data-recent-events-card className="overflow-visible rounded-xl border border-slate-100">
+                <div className="grid grid-cols-[1fr_1fr_0.95fr_0.95fr_0.55fr_1.3fr_0.75fr_0.4fr] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
                     <div>Data/Hora</div>
                     <div>Cliente</div>
                     <div>Telefone</div>
                     <div>Evento</div>
                     <div>Plataforma</div>
+                    <div>Parâmetros</div>
                     <div>Status</div>
                     <div>Conversa</div>
                 </div>
@@ -734,7 +882,7 @@ function RecentEventsCard({
                 {data.recent.map((event) => (
                     <div
                         key={event.id}
-                        className="grid grid-cols-[1fr_1.15fr_1fr_1fr_1fr_0.9fr_0.4fr] items-center border-t border-slate-100 px-4 py-4 text-sm"
+                        className="grid grid-cols-[1fr_1fr_0.95fr_0.95fr_0.55fr_1.3fr_0.75fr_0.4fr] items-center gap-2 border-t border-slate-100 px-4 py-4 text-sm"
                     >
                         <div
                             title={formatDateTime(event.date)}
@@ -745,7 +893,7 @@ function RecentEventsCard({
 
                         <div
                             title={event.client_name}
-                            className="truncate font-medium text-slate-700"
+                            className="min-w-0 truncate font-medium text-slate-700"
                         >
                             {event.client_name}
                         </div>
@@ -758,8 +906,12 @@ function RecentEventsCard({
                             <EventTypeBadge eventType={event.event_type} />
                         </div>
 
-                        <div>
+                        <div className={"justify-center mr-2 flex"}>
                             <PlatformBadge platform={event.platform} />
+                        </div>
+
+                        <div className="min-w-0">
+                            <ParameterBadges parameters={event.parameters ?? []} />
                         </div>
 
                         <div>
@@ -819,10 +971,10 @@ function EventTypeBadge({ eventType }: { eventType: AdEventType }) {
     );
 }
 
-function PlatformBadge({ platform }: { platform: AdPlatform | string }) {
+function PlatformBadge({ platform }: { platform: string }) {
     const platforms = platform
         .split(" + ")
-        .sort((b,a ) => a.localeCompare(b)) as AdPlatform[];
+        .sort((b, a) => a.localeCompare(b)) as AdPlatform[];
 
     return (
         <span className="inline-flex items-center gap-1.5">
@@ -844,6 +996,98 @@ function PlatformBadge({ platform }: { platform: AdPlatform | string }) {
             })}
         </span>
     );
+}
+
+function ParameterBadges({ parameters }: { parameters: string[] }) {
+    const sorted = sortParameters(parameters);
+    const wrapperRef = useRef<HTMLDivElement | null>(null);
+    const [side, setSide] = useState<"left" | "right">("left");
+
+    if (sorted.length === 0) {
+        return <span className="text-xs font-medium text-slate-400">—</span>;
+    }
+
+    function handleMouseEnter() {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+
+        const card = wrapper.closest("[data-recent-events-card]");
+        if (!card) return;
+
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+
+        const spaceRight = cardRect.right - wrapperRect.left;
+        const popupWidth = 520;
+
+        setSide(spaceRight < popupWidth ? "right" : "left");
+    }
+
+    return (
+        <div
+            ref={wrapperRef}
+            onMouseEnter={handleMouseEnter}
+            className="group cursor-pointer relative min-w-0 max-w-full"
+        >
+            <div className="flex min-w-0 max-w-full flex-nowrap gap-1.5 overflow-hidden">
+                {sorted.map((parameter) => (
+                    <ParameterBadge key={parameter} parameter={parameter} />
+                ))}
+            </div>
+
+            <div
+                className={`pointer-events-none absolute top-full z-50 mt-2 hidden max-w-[520px] rounded-2xl border border-slate-100 bg-white p-3 shadow-xl group-hover:block ${
+                    side === "right" ? "right-0" : "left-0"
+                }`}
+            >
+                <div className="flex flex-nowrap gap-1.5 overflow-hidden whitespace-nowrap">
+                    {sorted.map((parameter) => (
+                        <ParameterBadge
+                            key={`hover-${parameter}`}
+                            parameter={parameter}
+                            full
+                        />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ParameterBadge({
+                            parameter,
+                            full = false,
+                        }: {
+    parameter: string;
+    full?: boolean;
+}) {
+    const style = getParameterStyle(parameter);
+    const label = getParameterLabel(parameter);
+
+    return (
+        <span
+            className={`inline-flex shrink-0 truncate rounded-full px-2 py-1 text-[11px] font-bold ${style} ${
+                full ? "max-w-none" : "max-w-[115px]"
+            }`}
+        >
+            {label}
+        </span>
+    );
+}
+
+function sortParameters(parameters: string[]) {
+    return [...parameters]
+        .filter(Boolean)
+        .sort((a, b) => {
+            const aPriority = getParameterPriority(a);
+            const bPriority = getParameterPriority(b);
+
+            if (aPriority !== bPriority) {
+                return aPriority - bPriority;
+            }
+
+            return getParameterLabel(a).localeCompare(getParameterLabel(b));
+        });
 }
 
 function EventStatusBadge({ status }: { status: AdEventStatus }) {
@@ -871,7 +1115,6 @@ function LegendDot({
 }) {
     return (
         <div className="flex items-center gap-1.5">
-
             <span style={{ color }}>
                 <PlatformIconTiny platform={platform} />
             </span>
@@ -880,8 +1123,6 @@ function LegendDot({
         </div>
     );
 }
-
-
 
 function ChartLegendRow({
                             color,
@@ -943,14 +1184,14 @@ function EventsByDayTooltip({
                             className="flex items-center justify-between gap-6"
                         >
                             <div className="flex items-center gap-2">
-
-
                                 {bar ? (
-                                    <span                                     style={{
-                                        color: bar?.color ?? "#94a3b8",
-                                    }}>                                    <PlatformIconTiny platform={bar.platform} />
+                                    <span
+                                        style={{
+                                            color: bar?.color ?? "#94a3b8",
+                                        }}
+                                    >
+                                        <PlatformIconTiny platform={bar.platform} />
                                     </span>
-
                                 ) : null}
 
                                 <span
@@ -1029,7 +1270,6 @@ function getDailyKey(platform: string, eventType: string) {
     return `${slug(platform)}_${eventType}`;
 }
 
-
 function slug(value: string) {
     return value
         .toLowerCase()
@@ -1080,7 +1320,7 @@ function EventsBodySkeleton() {
         <>
             <section className="mb-6 grid grid-cols-1 gap-5">
                 <HorizontalScroller scrollAmount={400}>
-                    {Array.from({ length: 6 }).map((_, index) => (
+                    {Array.from({ length: 8 }).map((_, index) => (
                         <div key={index} className="min-w-[260px]">
                             <Card>
                                 <div className="flex items-center gap-5 overflow-hidden">
@@ -1207,4 +1447,121 @@ function getPaginationPages(
     }
 
     return [1, "...", currentPage, "...", totalPages];
+}
+
+function getPlatformCount(data: EventsDashboardData, platform: AdPlatform) {
+    return (
+        data.by_platform.find((item) => item.platform === platform)?.count ?? 0
+    );
+}
+
+function getParameterPriority(parameter: string) {
+    const normalized = normalizeParameter(parameter);
+
+    if (normalized === "fbclid") return 0;
+
+    if (normalized.includes("clid")) return 1;
+
+    if (FIRST_PARAMETERS.includes(normalized)) return 2;
+
+    if (SECOND_PARAMETERS.includes(normalized)) return 3;
+
+    if (LAST_PARAMETERS.includes(normalized)) return 5;
+
+    return 4;
+}
+
+function getParameterStyle(parameter: string) {
+    const normalized = normalizeParameter(parameter);
+
+    if (
+        normalized === "fbclid"
+    ) {
+        return "bg-blue-soft text-blue";
+    }
+    if (
+        normalized === "gclid"
+    ) {
+        return "bg-amber-100/50 text-amber-600";
+    }
+
+
+    if (FIRST_PARAMETERS.includes(normalized)){
+        return "bg-slate-100 text-slate-500";
+    }
+
+    return "bg-slate-100 text-slate-500 font-medium";
+}
+
+function getParameterLabel(parameter: string) {
+    const normalized = normalizeParameter(parameter);
+
+    const labels: Record<string, string> = {
+        phone: "Telefone",
+        external_id: "Identificação Externa",
+        first_name: "Nome",
+        last_name: "Sobrenome",
+
+        client_ip_address: "IP",
+        client_user_agent: "Agente usuário",
+        fbc: "fbc",
+        fbp: "fbp",
+        state: "Estado",
+        country: "País",
+
+        email: "Email",
+
+        fbclid: "fbclid",
+        gclid: "gclid",
+        gbraid: "gbraid",
+        wbraid: "wbraid",
+        ctwa_clid: "ctwa_clid",
+    };
+
+    return labels[normalized] ?? parameter;
+}
+
+function normalizeParameter(parameter: string) {
+    return parameter.trim().toLowerCase();
+}
+const FIRST_PARAMETERS = [
+    "client_ip_address",
+    "client_user_agent",
+    "state",
+    "country",
+
+    "fbclid",
+    "fbc",
+    "fbp",
+    "ctwa_clid",
+
+    "gclid",
+    "gbraid",
+    "wbraid",
+
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+];
+
+const SECOND_PARAMETERS = ["email"];
+
+const LAST_PARAMETERS = [
+    "phone",
+    "external_id",
+    "first_name",
+    "last_name",
+];
+function getYesterdayDateString() {
+    const date = new Date();
+
+    date.setDate(date.getDate() - 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }

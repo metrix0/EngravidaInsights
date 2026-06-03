@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import Card from "./Card";
 
-type KpiCardColor = "brand" | "green" | "blue" | "orange" | "purple";
+type KpiCardColor = "brand" | "green" | "blue" | "orange" | "purple" | "pink";
 
 type KpiCardProps = {
     icon: ReactNode;
@@ -24,6 +24,7 @@ const colorClasses: Record<KpiCardColor, string> = {
     blue: "bg-blue-soft text-blue",
     orange: "bg-orange-soft text-orange",
     purple: "bg-purple-soft text-purple",
+    pink: "bg-pink-soft text-pink",
 };
 
 export default function KpiCard({
