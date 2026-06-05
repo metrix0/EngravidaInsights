@@ -98,22 +98,37 @@ export async function sendGoogleEvents({
 
     const sentAt = new Date().toISOString();
 
-    const adEventIds = await createPendingGoogleAdEvents({
-        events,
-        conversation_id,
-        sentAt,
-    });
-
-    console.log("[sendGoogleEvents] pending ad_events created", {
-        conversation_id,
-        ad_event_ids: adEventIds,
-    });
-
     try {
         validateGoogleEnv();
 
         const tracking = await getClientTracking({
             conversationId: conversation_id,
+        });
+
+        if (!getBestClickId(tracking)) {
+            console.log("[sendGoogleEvents] skipped: no Google click id", {
+                conversation_id,
+                has_gclid: Boolean(tracking?.gclid),
+                has_gbraid: Boolean(tracking?.gbraid),
+                has_wbraid: Boolean(tracking?.wbraid),
+            });
+
+            return {
+                ok: true,
+                skipped: true,
+                reason: "No Google click id",
+            };
+        }
+
+        const adEventIds = await createPendingGoogleAdEvents({
+            events,
+            conversation_id,
+            sentAt,
+        });
+
+        console.log("[sendGoogleEvents] pending ad_events created", {
+            conversation_id,
+            ad_event_ids: adEventIds,
         });
 
         console.log("[sendGoogleEvents] client tracking loaded", {
@@ -333,11 +348,8 @@ export async function sendGoogleEvents({
             results,
         };
     } catch (error) {
-        await updateAdEventsStatus(adEventIds, "failed");
-
         console.error("[sendGoogleEvents] failed", {
             conversation_id,
-            ad_event_ids: adEventIds,
             error,
         });
 
