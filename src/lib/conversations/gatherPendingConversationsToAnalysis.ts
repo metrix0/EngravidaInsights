@@ -116,13 +116,20 @@ export async function gatherPendingConversationsToAnalysis({
             if (adEvents.length > 0) {
                 const { data: client, error: clientError } = await supabase
                     .from("clients")
-                    .select("phone, email")
+                    .select("phone, email, name")
                     .eq("id", analysis.client_id)
                     .single();
 
                 if (clientError) {
                     throw clientError;
                 }
+
+                console.log("[gatherPendingConversationsToAnalysis] client ad identity loaded", {
+                    conversation_id: conversation.id,
+                    client_id: analysis.client_id,
+                    has_phone: Boolean(client.phone),
+                    has_email: Boolean(client.email),
+                });
 
                 metaResult = await sendMetaEvents({
                     events: adEvents,
@@ -142,6 +149,7 @@ export async function gatherPendingConversationsToAnalysis({
                     events: adEvents,
                     phone: client.phone,
                     email: client.email,
+                    name: client.name,
                     conversation_id: conversation.id,
                     conversation_ended_at: conversation.ended_at ?? conversation.started_at,
                 });

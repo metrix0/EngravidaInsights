@@ -1,4 +1,5 @@
 // src/lib/ads/google/sendGoogleEvents.ts
+import { createHash } from "crypto";
 import { supabase } from "@/lib/supabase/client";
 import type { DerivedAdEvent } from "@/lib/ads/deriveAdEventsFromAnalysis";
 
@@ -6,6 +7,7 @@ type SendGoogleEventsInput = {
     events: DerivedAdEvent[];
     phone: string | null;
     email?: string | null;
+    name?: string | null;
     conversation_id: string;
     conversation_ended_at: string;
 };
@@ -63,6 +65,7 @@ export async function sendGoogleEvents({
                                            events,
                                            phone,
                                            email,
+                                           name,
                                            conversation_id,
                                            conversation_ended_at,
                                        }: SendGoogleEventsInput) {
@@ -72,6 +75,7 @@ export async function sendGoogleEvents({
         conversation_ended_at,
         has_phone: Boolean(phone),
         has_email: Boolean(email),
+        has_name: Boolean(name),
         accounts_count: googleAdsAccounts.length,
         accounts: googleAdsAccounts.map((account) => ({
             key: account.key,
@@ -121,7 +125,11 @@ export async function sendGoogleEvents({
             click_id_used: getBestClickIdName(tracking),
         });
 
-        const sentParameters = buildGoogleSentParameters(tracking);
+        const sentParameters = buildGoogleSentParameters(tracking, {
+            phone,
+            email,
+            name,
+        });
 
         await updateAdEventsParameters(adEventIds, sentParameters);
 
@@ -161,6 +169,9 @@ export async function sendGoogleEvents({
                         conversation_ended_at,
                         tracking,
                         account,
+                        phone,
+                        email,
+                        name,
                     })
                 )
                 .filter(Boolean);
@@ -340,12 +351,18 @@ function buildClickConversion({
                                   conversation_ended_at,
                                   tracking,
                                   account,
+                                  phone,
+                                  email,
+                                  name,
                               }: {
     event: DerivedAdEvent;
     conversation_id: string;
     conversation_ended_at: string;
     tracking: ClientTracking | null;
     account: GoogleAdsAccount;
+    phone: string | null;
+    email?: string | null;
+    name?: string | null;
 }) {
     const conversionAction = getConversionActionResourceName(
         event.google_conversion_name,
@@ -358,12 +375,16 @@ function buildClickConversion({
         return null;
     }
 
+    const userIdentifiers = buildUserIdentifiers({ phone, email, name });
+
     return removeNullValues({
         conversionAction,
         conversionDateTime: toGoogleAdsDateTime(conversation_ended_at),
         orderId: `${conversation_id}:${event.type}`,
 
         ...clickId,
+
+        ...(userIdentifiers.length > 0 ? { userIdentifiers } : {}),
     });
 }
 
@@ -606,7 +627,18 @@ async function updateAdEventsParameters(
     }
 }
 
-function buildGoogleSentParameters(tracking: ClientTracking | null) {
+function buildGoogleSentParameters(
+    tracking: ClientTracking | null,
+    {
+        phone,
+        email,
+        name,
+    }: {
+        phone: string | null;
+        email?: string | null;
+        name?: string | null;
+    }
+) {
     return uniqueStrings([
         "conversion_action",
         "conversion_date_time",
@@ -617,7 +649,103 @@ function buildGoogleSentParameters(tracking: ClientTracking | null) {
         tracking?.gclid ? "gclid" : null,
         tracking?.gbraid ? "gbraid" : null,
         tracking?.wbraid ? "wbraid" : null,
+
+        phone ? "hashed_phone_number" : null,
+        email ? "hashed_email" : null,
+        name ? "hashed_name" : null,
     ]);
+}
+
+function buildUserIdentifiers({
+                                  phone,
+                                  email,
+                                  name,
+                              }: {
+    phone: string | null;
+    email?: string | null;
+    name?: string | null;
+}) {
+    const userIdentifiers: Array<Record<string, unknown>> = [];
+
+    if (email) {
+        const hashedEmail = normalizeAndHashEmail(email);
+
+        if (hashedEmail) {
+            userIdentifiers.push({
+                hashedEmail,
+                userIdentifierSource: "FIRST_PARTY",
+            });
+        }
+    }
+
+    if (phone) {
+        const normalizedPhone = normalizeBrazilPhoneToE164(phone);
+
+        if (normalizedPhone) {
+            userIdentifiers.push({
+                hashedPhoneNumber: sha256(normalizedPhone),
+                userIdentifierSource: "FIRST_PARTY",
+            });
+        }
+    }
+
+    const splitName = splitFullName(name);
+
+    if (splitName) {
+        userIdentifiers.push({
+            addressInfo: {
+                hashedFirstName: normalizeAndHash(splitName.firstName),
+                hashedLastName: normalizeAndHash(splitName.lastName),
+            },
+            userIdentifierSource: "FIRST_PARTY",
+        });
+    }
+
+    return userIdentifiers;
+}
+
+function splitFullName(name?: string | null) {
+    if (!name) return null;
+
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+
+    if (parts.length < 2) return null;
+
+    return {
+        firstName: parts[0],
+        lastName: parts[parts.length - 1],
+    };
+}
+
+function normalizeAndHashEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+    const [localPart, domain] = normalized.split("@");
+
+    if (!localPart || !domain) return null;
+
+    if (domain === "gmail.com" || domain === "googlemail.com") {
+        return sha256(`${localPart.split("+")[0].replace(/\./g, "")}@${domain}`);
+    }
+
+    return sha256(normalized);
+}
+
+function normalizeAndHash(value: string) {
+    return sha256(value.trim().toLowerCase().replace(/\s+/g, ""));
+}
+
+function normalizeBrazilPhoneToE164(phone: string) {
+    const digits = phone.replace(/\D/g, "");
+
+    if (!digits) return null;
+    if (digits.startsWith("55")) return `+${digits}`;
+    if (digits.length === 10 || digits.length === 11) return `+55${digits}`;
+
+    return null;
+}
+
+function sha256(value: string) {
+    return createHash("sha256").update(value).digest("hex");
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {

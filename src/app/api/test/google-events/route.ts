@@ -6,8 +6,9 @@ export async function GET() {
     const result = await sendGoogleEvents({
         conversation_id: "f529ae7b-aba7-4602-bf6c-9fe05a0d3780",
         conversation_ended_at: new Date().toISOString(),
+        name: "josh test",
         phone: "5511999999999",
-        email: null,
+        email: "teste@gmail.com", // optional, but useful to test both
         events: [
             {
                 type: "lead",
