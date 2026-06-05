@@ -328,11 +328,6 @@ function buildTrackingCustomData(tracking: ClientTracking | null) {
 
     return removeNullValues({
         fbclid: tracking.fbclid,
-
-        gclid: tracking.gclid,
-        gbraid: tracking.gbraid,
-        wbraid: tracking.wbraid,
-
         utm_source: tracking.utm_source,
         utm_medium: tracking.utm_medium,
         utm_campaign: tracking.utm_campaign,
@@ -592,23 +587,22 @@ function buildMetaSentParameters({
         );
 
     const parsedName = parseFullName(tracking?.name ?? null);
-
     const normalizedState = normalizeBrazilState(tracking?.state ?? null);
     const normalizedCountry = normalizeCountry(tracking?.country ?? null);
 
     return uniqueStrings([
-        hashedPhone ? "phone" : null,
-        hashedEmail ? "email" : null,
+        hashedPhone ? "ph" : null,
+        hashedEmail ? "em" : null,
 
         tracking?.external_contact_id ? "external_id" : null,
 
-        parsedName.firstName ? "first_name" : null,
-        parsedName.lastName ? "last_name" : null,
+        parsedName.firstName ? "fn" : null,
+        parsedName.lastName ? "ln" : null,
 
         tracking?.client_ip_address ? "client_ip_address" : null,
         tracking?.client_user_agent ? "client_user_agent" : null,
 
-        normalizedState ? "state" : null,
+        normalizedState ? "st" : null,
         normalizedCountry ? "country" : null,
 
         fbc ? "fbc" : null,
@@ -616,9 +610,6 @@ function buildMetaSentParameters({
         tracking?.ctwa_clid ? "ctwa_clid" : null,
 
         tracking?.fbclid ? "fbclid" : null,
-        tracking?.gclid ? "gclid" : null,
-        tracking?.gbraid ? "gbraid" : null,
-        tracking?.wbraid ? "wbraid" : null,
 
         tracking?.utm_source ? "utm_source" : null,
         tracking?.utm_medium ? "utm_medium" : null,
