@@ -129,6 +129,7 @@ export async function gatherPendingConversationsToAnalysis({
                     client_id: analysis.client_id,
                     has_phone: Boolean(client.phone),
                     has_email: Boolean(client.email),
+                    has_name: Boolean(client.name),
                 });
 
                 metaResult = await sendMetaEvents({
@@ -142,7 +143,6 @@ export async function gatherPendingConversationsToAnalysis({
                 console.log("[gatherPendingConversationsToAnalysis] ad events sent to meta", {
                     conversation_id: conversation.id,
                     meta: metaResult,
-                    google: googleResult,
                 });
 
                 googleResult = await sendGoogleEvents({
@@ -159,8 +159,11 @@ export async function gatherPendingConversationsToAnalysis({
                     google: googleResult,
                 });
             } else {
-                console.log("[gatherPendingConversationsToAnalysis] no ad events sent to meta", {
+                console.log("[gatherPendingConversationsToAnalysis] no ad events sent", {
                     conversation_id: conversation.id,
+                    reason: "no_ad_events_derived",
+                    meta_sent: false,
+                    google_sent: false,
                 });
             }
 
