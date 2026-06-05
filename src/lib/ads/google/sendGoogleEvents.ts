@@ -231,8 +231,6 @@ export async function sendGoogleEvents({
             });
 
             if (json.partialFailureError) {
-                await updateAdEventsStatus(adEventIds, "failed");
-
                 console.error(`[sendGoogleEvents][${account.key}] partial failure`, {
                     account_label: account.label,
                     customer_id: account.customerId,
@@ -240,11 +238,18 @@ export async function sendGoogleEvents({
                     response: json,
                 });
 
-                throw new Error(
-                    `Google Ads partial failure (${account.label}): ${JSON.stringify(
-                        json
-                    )}`
-                );
+                results.push({
+                    account: account.key,
+                    label: account.label,
+                    customer_id: account.customerId,
+                    ok: false,
+                    skipped: false,
+                    reason: "Google Ads partial failure",
+                    payload,
+                    response: json,
+                });
+
+                continue;
             }
 
             if (!response.ok) {

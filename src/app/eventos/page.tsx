@@ -712,7 +712,7 @@ function ClickIdRatesCard({ data }: { data: EventsDashboardData }) {
             <div className="mb-5 flex items-center gap-2">
                 <h2 className="text-lg font-bold">Parâmetros de clique</h2>
 
-                <InfoTooltip text="% de eventos Meta com fbclid e % de eventos Google com gclid.">
+                <InfoTooltip text="Os eventos só são enviados para o Google caso haja gclid, gbraid ou wbraid. Porém o TinTim nos envia apenas gclid.">
                     <HelpCircle size={16} className="text-slate-400" />
                 </InfoTooltip>
             </div>
