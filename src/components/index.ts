@@ -10,3 +10,6 @@ export { default as HorizontalScroller } from "./ui/HorizontalScroller";
 export { default as ButtonGroup } from "./ui/ButtonGroup";
 export { default as CalendarButton } from "./ui/CalendarButton";
 export { default as InfoTooltip } from "./ui/InfoTooltip";
+export { DashboardHeader } from "./dashboard/DashboardHeader";
+export { MainFilters } from "./dashboard/MainFilters";
+export { default as Pagination } from "./ui/Pagination";

@@ -1,4 +1,4 @@
-// src/app/api/tintim/route.ts
+// src/app/api/(webhooks)/tintim/route.ts
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 

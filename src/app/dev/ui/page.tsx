@@ -1,8 +1,6 @@
 // src/app/dev/ui/page.tsx
 "use client";
 import { uiRegistry } from "./uiRegistry.generated";
-import {MapPin} from "lucide-react";
-import FilterButton from "../../../components/ui/FilterButton";
 
 export default function DevUiPage() {
     return (

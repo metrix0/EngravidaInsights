@@ -3,10 +3,8 @@
 
 import { useEffect, useState } from "react";
 import {
-    BarChart3,
     Calendar,
     Clock,
-    MessageCircle,
     Target,
     Phone,
     User,

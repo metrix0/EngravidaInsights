@@ -1,19 +1,23 @@
 // src/app/eventos/page.tsx
 "use client";
 
-import { type ReactNode, useEffect, useState, useRef } from "react";
+import {type ReactNode, useEffect, useState, useRef} from "react";
 import {
     AlertTriangle,
     BarChart3,
     Calendar,
-    ChevronLeft,
-    ChevronRight,
     HelpCircle,
-    MapPin,
     MessageCircleMore,
     Send,
     UsersRound,
 } from "lucide-react";
+import {
+    applyArrayParams,
+    applyCalendarDateParams,
+
+    type CalendarPresetValue,
+    type DateRange,
+} from "@/components/ui/CalendarButton";
 import {
     Bar,
     BarChart,
@@ -26,9 +30,9 @@ import {
     XAxis,
     YAxis,
 } from "recharts";
-import { FaGoogle, FaMeta } from "react-icons/fa6";
+import {FaGoogle, FaMeta} from "react-icons/fa6";
 
-import type { FiltersResponse } from "@/types";
+import type {FiltersResponse} from "@/types";
 import {
     AD_EVENT_STATUS_LABELS,
     AD_EVENT_STATUSES,
@@ -42,26 +46,20 @@ import {
 } from "@/types/ad-event";
 
 import {
-    ButtonGroup,
-    CalendarButton,
+    DashboardHeader,
+    MainFilters,
     Card,
-    FilterButton,
     HorizontalScroller,
     InfoTooltip,
     KpiCard,
     SidePanel,
     Skeleton,
+    Pagination,
 } from "@/components";
 
 import AdvancedFilterButton from "@/components/ui/AdvancedFilterButton";
-import { ConversationPanel } from "@/components/conversations/ConversationPanel";
+import {ConversationPanel} from "@/components/conversations/ConversationPanel";
 
-type Period = "yesterday" | "7" | "30" | "90";
-
-type DateRange = {
-    start: string | null;
-    end: string | null;
-};
 
 type EventsDashboardData = {
     kpis: {
@@ -140,17 +138,10 @@ const EVENT_TYPE_CHART_COLORS: Record<AdEventType, string> = {
     schedule: "#e83e8c",
 };
 
-const STATUS_CHART_COLORS: Record<AdEventStatus, string> = {
-    sent: "#0fbb73",
-    failed: "#e43535",
-};
 
 export default function EventsPage() {
     const [filters, setFilters] = useState<FiltersResponse | null>(null);
     const [data, setData] = useState<EventsDashboardData | null>(null);
-
-    const [unitIds, setUnitIds] = useState<string[]>([]);
-    const [serviceIds, setServiceIds] = useState<string[]>([]);
 
     const [eventValues, setEventValues] = useState<string[]>([]);
     const [platformValues, setPlatformValues] = useState<string[]>([]);
@@ -158,7 +149,7 @@ export default function EventsPage() {
     const [tunnelValues, setTunnelValues] = useState<string[]>([]);
     const [originValues, setOriginValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("yesterday");
+    const [period, setPeriod] = useState<CalendarPresetValue | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
@@ -174,25 +165,18 @@ export default function EventsPage() {
     const [loadingData, setLoadingData] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [
-        unitIds,
-        serviceIds,
-        platformValues,
-        eventValues,
-        statusValues,
-        tunnelValues,
-        originValues,
-        period,
-        selectedRange,
-    ]);
+    function resetPageAndSet<T>(setter: (value: T) => void) {
+        return (value: T) => {
+            setCurrentPage(1);
+            setter(value);
+        };
+    }
 
     useEffect(() => {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,services,tunnels,origins"
+                    "/api/dashboard/filters?entities=tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -218,25 +202,12 @@ export default function EventsPage() {
             params.set("page", String(currentPage));
             params.set("page_size", String(PAGE_SIZE));
 
-if (selectedRange.start) {
-    params.set("start_date", selectedRange.start);
-    params.set("end_date", selectedRange.end ?? selectedRange.start);
-} else if (period === "yesterday") {
-    const yesterday = getYesterdayDateString();
+            applyCalendarDateParams({
+                params,
+                selectedRange,
+                selectedPreset: period,
+            });
 
-    params.set("start_date", yesterday);
-    params.set("end_date", yesterday);
-} else {
-    params.set("days", period ?? "7");
-}
-
-            if (unitIds.length > 0) {
-                params.set("unit_ids", unitIds.join(","));
-            }
-
-            if (serviceIds.length > 0) {
-                params.set("service_ids", serviceIds.join(","));
-            }
 
             if (platformValues.length > 0) {
                 params.set("platforms", platformValues.join(","));
@@ -250,13 +221,10 @@ if (selectedRange.start) {
                 params.set("statuses", statusValues.join(","));
             }
 
-            if (tunnelValues.length > 0) {
-                params.set("tunnels", tunnelValues.join(","));
-            }
-
-            if (originValues.length > 0) {
-                params.set("origins", originValues.join(","));
-            }
+            applyArrayParams(params, {
+                tunnels: tunnelValues,
+                origins: originValues,
+            });
 
             try {
                 const response = await fetch(
@@ -274,8 +242,6 @@ if (selectedRange.start) {
         loadData();
     }, [
         currentPage,
-        unitIds,
-        serviceIds,
         platformValues,
         eventValues,
         statusValues,
@@ -288,10 +254,10 @@ if (selectedRange.start) {
     if (loadingFilters || loadingData) {
         return (
             <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-                <SidePanel />
+                <SidePanel/>
 
                 <section className="flex-1 px-8 py-8">
-                    <EventsSkeleton />
+                    <EventsSkeleton/>
                 </section>
             </main>
         );
@@ -300,7 +266,7 @@ if (selectedRange.start) {
     if (!data) {
         return (
             <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-                <SidePanel />
+                <SidePanel/>
 
                 <section className="flex-1 px-8 py-8">
                     Nenhum dado encontrado.
@@ -311,51 +277,27 @@ if (selectedRange.start) {
 
     return (
         <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-            <SidePanel />
+            <SidePanel/>
 
             <section className="flex-1 px-8 py-8">
-                <Header
+                <DashboardHeader
+                    title="Eventos"
+                    description="Acompanhe os eventos enviados para as plataformas de anúncios"
                     period={period}
-                    setPeriod={setPeriod}
+                    setPeriod={resetPageAndSet(setPeriod)}
                     selectedRange={selectedRange}
                     setSelectedRange={setSelectedRange}
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
-    <span className="hidden">
-        <FilterButton
-            icon={<MapPin size={16} />}
-            label="Todas as unidades"
-            values={unitIds}
-            onChange={setUnitIds}
-            options={filters?.units ?? []}
-        />
-    </span>
 
-                    <span className="hidden">
-        <FilterButton
-            icon={<BarChart3 size={16} />}
-            label="Todos os serviços"
-            values={serviceIds}
-            onChange={setServiceIds}
-            options={filters?.services ?? []}
-        />
-    </span>
-
-                    <FilterButton
-                        icon={<BarChart3 size={16} />}
-                        label="Todos os túneis"
-                        values={tunnelValues}
-                        onChange={setTunnelValues}
-                        options={(filters as any)?.tunnels ?? []}
-                    />
-
-                    <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as origens"
-                        values={originValues}
-                        onChange={setOriginValues}
-                        options={(filters as any)?.origins ?? []}
+                    <MainFilters
+                        tunnels={filters?.tunnels}
+                        origins={filters?.origins}
+                        tunnelValues={tunnelValues}
+                        setTunnelValues={resetPageAndSet(setTunnelValues)}
+                        originValues={originValues}
+                        setOriginValues={resetPageAndSet(setOriginValues)}
                     />
 
                     <AdvancedFilterButton
@@ -364,7 +306,7 @@ if (selectedRange.start) {
                                 id: "event",
                                 title: "Evento",
                                 values: eventValues,
-                                onChange: setEventValues,
+                                onChange: resetPageAndSet(setEventValues),
                                 options: AD_EVENT_TYPES.map((eventType) => ({
                                     label: AD_EVENT_TYPE_LABELS[eventType],
                                     value: eventType,
@@ -374,7 +316,7 @@ if (selectedRange.start) {
                                 id: "platform",
                                 title: "Plataforma",
                                 values: platformValues,
-                                onChange: setPlatformValues,
+                                onChange: resetPageAndSet(setPlatformValues),
                                 options: AD_PLATFORMS.map((platform) => ({
                                     label: AD_PLATFORM_LABELS[platform],
                                     value: platform,
@@ -384,7 +326,7 @@ if (selectedRange.start) {
                                 id: "status",
                                 title: "Status",
                                 values: statusValues,
-                                onChange: setStatusValues,
+                                onChange: resetPageAndSet(setStatusValues),
                                 options: AD_EVENT_STATUSES.map((status) => ({
                                     label: AD_EVENT_STATUS_LABELS[status],
                                     value: status,
@@ -395,15 +337,15 @@ if (selectedRange.start) {
                 </div>
 
                 {isRefreshing ? (
-                    <EventsBodySkeleton />
+                    <EventsBodySkeleton/>
                 ) : (
                     <div className="overflow-x-hidden pb-12">
-                        <KpiSection data={data} />
+                        <KpiSection data={data}/>
 
                         <section className="mb-6 grid grid-cols-[1.8fr_0.8fr_0.8fr] gap-5">
-                            <EventsByDayCard data={data} />
-                            <EventsByTypeCard data={data} />
-                            <ClickIdRatesCard data={data} />
+                            <EventsByDayCard data={data}/>
+                            <EventsByTypeCard data={data}/>
+                            <ClickIdRatesCard data={data}/>
                         </section>
 
                         <RecentEventsCard
@@ -424,70 +366,15 @@ if (selectedRange.start) {
     );
 }
 
-function Header({
-                    period,
-                    setPeriod,
-                    selectedRange,
-                    setSelectedRange,
-                }: {
-    period: Period | null;
-    setPeriod: (value: Period | null) => void;
-    selectedRange: DateRange;
-    setSelectedRange: (value: DateRange) => void;
-}) {
-    return (
-        <header className="mb-8 flex items-start justify-between">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-                    Eventos
-                </h1>
 
-                <p className="mt-2 text-sm text-slate-500">
-                    Acompanhe os eventos enviados para as plataformas de anúncios
-                </p>
-            </div>
-
-            <ButtonGroup
-                value={period}
-                onChange={(value) => {
-                    setPeriod(value);
-                    setSelectedRange({
-                        start: null,
-                        end: null,
-                    });
-                }}
-options={[
-    { value: "yesterday", label: "Ontem" },
-    { value: "7", label: "7 dias" },
-    { value: "30", label: "30 dias" },
-    { value: "90", label: "90 dias" },
-]}
-            >
-                <CalendarButton
-                    value={selectedRange}
-                    onChange={setSelectedRange}
-onApply={(range) => {
-    if (range.start) {
-        setPeriod(null);
-        return;
-    }
-
-    setPeriod("yesterday");
-}}
-                />
-            </ButtonGroup>
-        </header>
-    );
-}
-
-function KpiSection({ data }: { data: EventsDashboardData }) {
+function KpiSection({data}: { data: EventsDashboardData }) {
 
     return (
         <section className="mb-6 grid grid-cols-1 gap-5">
             <HorizontalScroller scrollAmount={400}>
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<Send size={26} />}
+                        icon={<Send size={26}/>}
                         label="Eventos enviados"
                         currentValue={data.kpis.total_events}
                         previousValue={data.previous_kpis.total_events}
@@ -497,7 +384,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
                 </div>
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<FaMeta size={26} className="text-blue-600" />}
+                        icon={<FaMeta size={26} className="text-blue-600"/>}
                         label="Meta Ads"
                         currentValue={getPlatformCount(data, "Meta Ads")}
                         previousValue={getPreviousPlatformCount(data, "Meta Ads")}
@@ -518,7 +405,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
 
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<FaGoogle size={24} className="text-amber-600" />}
+                        icon={<FaGoogle size={24} className="text-amber-600"/>}
                         label="Google Ads"
                         currentValue={getPlatformCount(data, "Google Ads")}
                         previousValue={getPreviousPlatformCount(data, "Google Ads")}
@@ -540,7 +427,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
 
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<UsersRound size={26} />}
+                        icon={<UsersRound size={26}/>}
                         label="Qualified Lead"
                         currentValue={getTypeCount(data, "lead")}
                         previousValue={getPreviousTypeCount(data, "lead")}
@@ -551,7 +438,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
 
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<Calendar size={26} />}
+                        icon={<Calendar size={26}/>}
                         label="Schedule"
                         currentValue={getTypeCount(data, "schedule")}
                         previousValue={getPreviousTypeCount(data, "schedule")}
@@ -562,7 +449,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
 
                 <div className="min-w-[260px]">
                     <KpiCard
-                        icon={<AlertTriangle size={26} />}
+                        icon={<AlertTriangle size={26}/>}
                         label="Falhas no envio"
                         currentValue={data.kpis.failed_events}
                         previousValue={data.previous_kpis.failed_events}
@@ -576,7 +463,7 @@ function KpiSection({ data }: { data: EventsDashboardData }) {
     );
 }
 
-function EventsByDayCard({ data }: { data: EventsDashboardData }) {
+function EventsByDayCard({data}: { data: EventsDashboardData }) {
     const bars = AD_PLATFORMS.flatMap((platform) =>
         AD_EVENT_TYPES.map((eventType) => {
             const key = getDailyKey(platform, eventType);
@@ -600,7 +487,7 @@ function EventsByDayCard({ data }: { data: EventsDashboardData }) {
                     </h2>
 
                     <InfoTooltip text="Mostra a quantidade de eventos enviados por plataforma e tipo de evento.">
-                        <HelpCircle size={16} className="text-slate-400" />
+                        <HelpCircle size={16} className="text-slate-400"/>
                     </InfoTooltip>
                 </div>
 
@@ -619,18 +506,18 @@ function EventsByDayCard({ data }: { data: EventsDashboardData }) {
             <div className="h-[285px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.daily} barCategoryGap="22%">
-                        <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+                        <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0"/>
 
                         <XAxis
                             dataKey="date"
-                            tick={{ fontSize: 12 }}
+                            tick={{fontSize: 12}}
                             stroke="#94a3b8"
                         />
 
-                        <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                        <YAxis tick={{fontSize: 12}} stroke="#94a3b8"/>
 
                         <Tooltip
-                            content={<EventsByDayTooltip bars={bars} />}
+                            content={<EventsByDayTooltip bars={bars}/>}
                             cursor={false}
                         />
 
@@ -650,14 +537,14 @@ function EventsByDayCard({ data }: { data: EventsDashboardData }) {
     );
 }
 
-function EventsByTypeCard({ data }: { data: EventsDashboardData }) {
+function EventsByTypeCard({data}: { data: EventsDashboardData }) {
     return (
         <Card>
             <div className="mb-5 flex items-center gap-2">
                 <h2 className="text-lg font-bold">Eventos por tipo</h2>
 
                 <InfoTooltip text="Distribuição dos eventos derivados das análises.">
-                    <HelpCircle size={16} className="text-slate-400" />
+                    <HelpCircle size={16} className="text-slate-400"/>
                 </InfoTooltip>
             </div>
 
@@ -680,7 +567,7 @@ function EventsByTypeCard({ data }: { data: EventsDashboardData }) {
                             ))}
                         </Pie>
 
-                        <Tooltip />
+                        <Tooltip/>
                     </PieChart>
                 </ResponsiveContainer>
 
@@ -706,20 +593,21 @@ function EventsByTypeCard({ data }: { data: EventsDashboardData }) {
     );
 }
 
-function ClickIdRatesCard({ data }: { data: EventsDashboardData }) {
+function ClickIdRatesCard({data}: { data: EventsDashboardData }) {
     return (
         <Card>
             <div className="mb-5 flex items-center gap-2">
                 <h2 className="text-lg font-bold">Parâmetros de clique</h2>
 
-                <InfoTooltip text="Os eventos só são enviados para o Google caso haja gclid, gbraid ou wbraid. Porém o TinTim nos envia apenas gclid.">
-                    <HelpCircle size={16} className="text-slate-400" />
+                <InfoTooltip
+                    text="Os eventos só são enviados para o Google caso haja gclid, gbraid ou wbraid. Porém o TinTim nos envia apenas gclid.">
+                    <HelpCircle size={16} className="text-slate-400"/>
                 </InfoTooltip>
             </div>
 
             <div className="space-y-4">
                 <ClickIdRateBox
-                    icon={<FaMeta size={18} />}
+                    icon={<FaMeta size={18}/>}
                     label="% FBClid"
                     value={data.kpis.fbclid_rate}
                     count={data.kpis.fbclid_events}
@@ -729,7 +617,7 @@ function ClickIdRatesCard({ data }: { data: EventsDashboardData }) {
                 />
 
                 <ClickIdRateBox
-                    icon={<FaGoogle size={17} />}
+                    icon={<FaGoogle size={17}/>}
                     label="% GClid"
                     value={data.kpis.gclid_rate}
                     count={data.kpis.gclid_events}
@@ -781,67 +669,13 @@ function ClickIdRateBox({
             <div className="h-2 overflow-hidden rounded-full bg-white/80">
                 <div
                     className={`h-full rounded-full ${barClass}`}
-                    style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+                    style={{width: `${Math.min(100, Math.max(0, value))}%`}}
                 />
             </div>
         </div>
     );
 }
 
-function SendStatusCard({ data }: { data: EventsDashboardData }) {
-    return (
-        <Card>
-            <div className="mb-5 flex items-center gap-2">
-                <h2 className="text-lg font-bold">Status de envio</h2>
-
-                <InfoTooltip text="Mostra quantos eventos foram enviados ou falharam.">
-                    <HelpCircle size={16} className="text-slate-400" />
-                </InfoTooltip>
-            </div>
-
-            <div className="relative h-[215px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                        <Pie
-                            data={data.by_status}
-                            dataKey="count"
-                            nameKey="status"
-                            innerRadius={58}
-                            outerRadius={86}
-                        >
-                            {data.by_status.map((item) => (
-                                <Cell
-                                    key={item.status}
-                                    fill={STATUS_CHART_COLORS[item.status]}
-                                />
-                            ))}
-                        </Pie>
-
-                        <Tooltip />
-                    </PieChart>
-                </ResponsiveContainer>
-
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-2xl font-bold text-slate-900">
-                        {data.kpis.total_events}
-                    </div>
-                    <div className="text-xs text-slate-500">Total</div>
-                </div>
-            </div>
-
-            <div className="mt-5 space-y-3 text-sm">
-                {data.by_status.map((item) => (
-                    <ChartLegendRow
-                        key={item.status}
-                        color={STATUS_CHART_COLORS[item.status]}
-                        label={AD_EVENT_STATUS_LABELS[item.status]}
-                        value={`${item.count} (${item.percentage}%)`}
-                    />
-                ))}
-            </div>
-        </Card>
-    );
-}
 
 function RecentEventsCard({
                               data,
@@ -868,7 +702,8 @@ function RecentEventsCard({
             </div>
 
             <div data-recent-events-card className="overflow-visible rounded-xl border border-slate-100">
-                <div className="grid grid-cols-[1fr_1fr_0.95fr_0.95fr_0.55fr_1.3fr_0.75fr_0.4fr] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+                <div
+                    className="grid grid-cols-[1fr_1fr_0.95fr_0.95fr_0.55fr_1.3fr_0.75fr_0.4fr] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
                     <div>Data/Hora</div>
                     <div>Cliente</div>
                     <div>Telefone</div>
@@ -903,19 +738,19 @@ function RecentEventsCard({
                         </div>
 
                         <div>
-                            <EventTypeBadge eventType={event.event_type} />
+                            <EventTypeBadge eventType={event.event_type}/>
                         </div>
 
                         <div className={"justify-center mr-2 flex"}>
-                            <PlatformBadge platform={event.platform} />
+                            <PlatformBadge platform={event.platform}/>
                         </div>
 
                         <div className="min-w-0">
-                            <ParameterBadges parameters={event.parameters ?? []} />
+                            <ParameterBadges parameters={event.parameters ?? []}/>
                         </div>
 
                         <div>
-                            <EventStatusBadge status={event.status} />
+                            <EventStatusBadge status={event.status}/>
                         </div>
 
                         <button
@@ -928,7 +763,7 @@ function RecentEventsCard({
                             }}
                             className="flex w-full cursor-pointer items-center justify-center font-bold text-slate-500 transition-colors hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                            <MessageCircleMore size={16} />
+                            <MessageCircleMore size={16}/>
                         </button>
                     </div>
                 ))}
@@ -957,7 +792,7 @@ function RecentEventsCard({
     );
 }
 
-function EventTypeBadge({ eventType }: { eventType: AdEventType }) {
+function EventTypeBadge({eventType}: { eventType: AdEventType }) {
     const isSchedule = eventType === "schedule";
 
     return (
@@ -971,7 +806,7 @@ function EventTypeBadge({ eventType }: { eventType: AdEventType }) {
     );
 }
 
-function PlatformBadge({ platform }: { platform: string }) {
+function PlatformBadge({platform}: { platform: string }) {
     const platforms = platform
         .split(" + ")
         .sort((b, a) => a.localeCompare(b)) as AdPlatform[];
@@ -990,7 +825,7 @@ function PlatformBadge({ platform }: { platform: string }) {
                                 : "bg-amber-100/40 text-amber-600"
                         }`}
                     >
-                        <PlatformIconTiny platform={singlePlatform} />
+                        <PlatformIconTiny platform={singlePlatform}/>
                     </span>
                 );
             })}
@@ -998,7 +833,7 @@ function PlatformBadge({ platform }: { platform: string }) {
     );
 }
 
-function ParameterBadges({ parameters }: { parameters: string[] }) {
+function ParameterBadges({parameters}: { parameters: string[] }) {
     const sorted = sortParameters(parameters);
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const [side, setSide] = useState<"left" | "right">("left");
@@ -1031,7 +866,7 @@ function ParameterBadges({ parameters }: { parameters: string[] }) {
         >
             <div className="flex min-w-0 max-w-full flex-nowrap gap-1.5 overflow-hidden">
                 {sorted.map((parameter) => (
-                    <ParameterBadge key={parameter} parameter={parameter} />
+                    <ParameterBadge key={parameter} parameter={parameter}/>
                 ))}
             </div>
 
@@ -1090,7 +925,7 @@ function sortParameters(parameters: string[]) {
         });
 }
 
-function EventStatusBadge({ status }: { status: AdEventStatus }) {
+function EventStatusBadge({status}: { status: AdEventStatus }) {
     const isSent = status === "sent";
 
     return (
@@ -1115,8 +950,8 @@ function LegendDot({
 }) {
     return (
         <div className="flex items-center gap-1.5">
-            <span style={{ color }}>
-                <PlatformIconTiny platform={platform} />
+            <span style={{color}}>
+                <PlatformIconTiny platform={platform}/>
             </span>
 
             <span>{label}</span>
@@ -1138,7 +973,7 @@ function ChartLegendRow({
             <div className="flex items-center gap-2">
                 <span
                     className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: color }}
+                    style={{backgroundColor: color}}
                 />
                 <span className="text-slate-600">{label}</span>
             </div>
@@ -1190,7 +1025,7 @@ function EventsByDayTooltip({
                                             color: bar?.color ?? "#94a3b8",
                                         }}
                                     >
-                                        <PlatformIconTiny platform={bar.platform} />
+                                        <PlatformIconTiny platform={bar.platform}/>
                                     </span>
                                 ) : null}
 
@@ -1219,28 +1054,17 @@ function EventsByDayTooltip({
     );
 }
 
-function PlatformIcon({ platform }: { platform: AdPlatform }) {
+
+function PlatformIconTiny({platform}: { platform: AdPlatform }) {
     if (platform === "Meta Ads") {
-        return <FaMeta size={26} className="text-blue-600" />;
+        return <FaMeta size={14}/>;
     }
 
     if (platform === "Google Ads") {
-        return <FaGoogle size={24} className="text-amber-600" />;
+        return <FaGoogle size={12}/>;
     }
 
-    return <BarChart3 size={26} />;
-}
-
-function PlatformIconTiny({ platform }: { platform: AdPlatform }) {
-    if (platform === "Meta Ads") {
-        return <FaMeta size={14} />;
-    }
-
-    if (platform === "Google Ads") {
-        return <FaGoogle size={12} />;
-    }
-
-    return <BarChart3 size={14} />;
+    return <BarChart3 size={14}/>;
 }
 
 function getTypeCount(data: EventsDashboardData, eventType: AdEventType) {
@@ -1297,20 +1121,20 @@ function EventsSkeleton() {
         <>
             <div className="mb-8 flex items-start justify-between">
                 <div>
-                    <Skeleton className="h-9 w-[180px]" />
-                    <Skeleton className="mt-3 h-4 w-[430px]" />
+                    <Skeleton className="h-9 w-[180px]"/>
+                    <Skeleton className="mt-3 h-4 w-[430px]"/>
                 </div>
 
-                <Skeleton className="h-12 w-[310px]" />
+                <Skeleton className="h-12 w-[310px]"/>
             </div>
 
             <div className="mb-8 flex justify-end gap-3">
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[140px]" />
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[140px]"/>
             </div>
 
-            <EventsBodySkeleton />
+            <EventsBodySkeleton/>
         </>
     );
 }
@@ -1320,16 +1144,16 @@ function EventsBodySkeleton() {
         <>
             <section className="mb-6 grid grid-cols-1 gap-5">
                 <HorizontalScroller scrollAmount={400}>
-                    {Array.from({ length: 8 }).map((_, index) => (
+                    {Array.from({length: 8}).map((_, index) => (
                         <div key={index} className="min-w-[260px]">
                             <Card>
                                 <div className="flex items-center gap-5 overflow-hidden">
-                                    <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
+                                    <Skeleton className="h-14 w-14 shrink-0 rounded-full"/>
 
                                     <div className="min-w-0 flex-1">
-                                        <Skeleton className="h-3 w-[65%]" />
-                                        <Skeleton className="mt-3 h-8 w-[45%]" />
-                                        <Skeleton className="mt-3 h-3 w-[75%]" />
+                                        <Skeleton className="h-3 w-[65%]"/>
+                                        <Skeleton className="mt-3 h-8 w-[45%]"/>
+                                        <Skeleton className="mt-3 h-3 w-[75%]"/>
                                     </div>
                                 </div>
                             </Card>
@@ -1340,27 +1164,27 @@ function EventsBodySkeleton() {
 
             <section className="mb-6 grid grid-cols-[1.8fr_0.8fr_0.8fr] gap-5">
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[40%]" />
-                    <Skeleton className="h-[285px] w-full" />
+                    <Skeleton className="mb-6 h-6 w-[40%]"/>
+                    <Skeleton className="h-[285px] w-full"/>
                 </Card>
 
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[60%]" />
-                    <Skeleton className="h-[215px] w-full" />
+                    <Skeleton className="mb-6 h-6 w-[60%]"/>
+                    <Skeleton className="h-[215px] w-full"/>
                 </Card>
 
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[55%]" />
-                    <Skeleton className="h-[215px] w-full" />
+                    <Skeleton className="mb-6 h-6 w-[55%]"/>
+                    <Skeleton className="h-[215px] w-full"/>
                 </Card>
             </section>
 
             <Card>
-                <Skeleton className="mb-5 h-6 w-[180px]" />
+                <Skeleton className="mb-5 h-6 w-[180px]"/>
 
                 <div className="space-y-4">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                        <Skeleton key={index} className="h-10 w-full" />
+                    {Array.from({length: 5}).map((_, index) => (
+                        <Skeleton key={index} className="h-10 w-full"/>
                     ))}
                 </div>
             </Card>
@@ -1368,86 +1192,6 @@ function EventsBodySkeleton() {
     );
 }
 
-function Pagination({
-                        totalPages,
-                        currentPage,
-                        onPageChange,
-                    }: {
-    totalPages: number;
-    currentPage: number;
-    onPageChange: (page: number) => void;
-}) {
-    const pages = getPaginationPages(totalPages, currentPage);
-
-    return (
-        <div className="flex items-center gap-2">
-            <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => onPageChange(currentPage - 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                <ChevronLeft size={18} />
-            </button>
-
-            {pages.map((page, index) =>
-                page === "..." ? (
-                    <div
-                        key={`ellipsis-${index}`}
-                        className="flex h-10 w-10 items-center justify-center text-slate-500"
-                    >
-                        ...
-                    </div>
-                ) : (
-                    <button
-                        key={page}
-                        type="button"
-                        onClick={() => onPageChange(page)}
-                        className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
-                            page === currentPage
-                                ? "bg-purple-soft text-purple"
-                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                    >
-                        {page}
-                    </button>
-                )
-            )}
-
-            <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => onPageChange(currentPage + 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                <ChevronRight size={18} />
-            </button>
-        </div>
-    );
-}
-
-type PaginationPage = number | "...";
-
-function getPaginationPages(
-    totalPages: number,
-    currentPage: number
-): PaginationPage[] {
-    if (totalPages <= 1) return [1];
-
-    if (totalPages <= 5) {
-        return Array.from({ length: totalPages }, (_, index) => index + 1);
-    }
-
-    if (currentPage <= 3) {
-        return [1, 2, 3, "...", totalPages];
-    }
-
-    if (currentPage >= totalPages - 2) {
-        return [1, "...", totalPages - 2, totalPages - 1, totalPages];
-    }
-
-    return [1, "...", currentPage, "...", totalPages];
-}
 
 function getPlatformCount(data: EventsDashboardData, platform: AdPlatform) {
     return (
@@ -1486,7 +1230,7 @@ function getParameterStyle(parameter: string) {
     }
 
 
-    if (FIRST_PARAMETERS.includes(normalized)){
+    if (FIRST_PARAMETERS.includes(normalized)) {
         return "bg-slate-100 text-slate-500";
     }
 
@@ -1524,6 +1268,7 @@ function getParameterLabel(parameter: string) {
 function normalizeParameter(parameter: string) {
     return parameter.trim().toLowerCase();
 }
+
 const FIRST_PARAMETERS = [
     "client_ip_address",
     "client_user_agent",
@@ -1554,14 +1299,4 @@ const LAST_PARAMETERS = [
     "first_name",
     "last_name",
 ];
-function getYesterdayDateString() {
-    const date = new Date();
 
-    date.setDate(date.getDate() - 1);
-
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-}

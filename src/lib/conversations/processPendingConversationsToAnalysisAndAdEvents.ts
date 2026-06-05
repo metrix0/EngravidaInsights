@@ -1,4 +1,4 @@
-// src/lib/conversations/gatherPendingConversationsToAnalysis.ts
+// src/lib/conversations/processPendingConversationsToAnalysisAndAdEvents.ts
 import { supabase } from "@/lib/supabase/client";
 
 import { analyzeConversation } from "@/lib/ai/analyzeConversation";
@@ -9,7 +9,7 @@ import { sendGoogleEvents } from "@/lib/ads/google/sendGoogleEvents";
 
 import type { AnalyzeConversationInput, Conversation, Message } from "@/types";
 
-export async function gatherPendingConversationsToAnalysis({
+export async function processPendingConversationsToAnalysisAndAdEvents({
                                                                limit = 1000,
                                                                conversationIds,
                                                            }: {
@@ -21,7 +21,7 @@ export async function gatherPendingConversationsToAnalysis({
         conversationIds,
     });
 
-    console.log("[gatherPendingConversationsToAnalysis] gathered conversations without analysis", {
+    console.log("[processPendingConversationsToAnalysisAndAdEvents] gathered conversations without analysis", {
         conversations_found: conversations.length,
     });
 
@@ -29,7 +29,7 @@ export async function gatherPendingConversationsToAnalysis({
 
     for (const conversation of conversations) {
         try {
-            console.log("[gatherPendingConversationsToAnalysis] preparing conversation", {
+            console.log("[processPendingConversationsToAnalysisAndAdEvents] preparing conversation", {
                 conversation_id: conversation.id,
                 client_id: conversation.client_id,
             });
@@ -41,7 +41,7 @@ export async function gatherPendingConversationsToAnalysis({
             );
 
             if (missingSenderName) {
-                console.log("[gatherPendingConversationsToAnalysis] skipped conversation: missing sender name", {
+                console.log("[processPendingConversationsToAnalysisAndAdEvents] skipped conversation: missing sender name", {
                     conversation_id: conversation.id,
                     message_id: missingSenderName.id,
                     sender_type: missingSenderName.sender_type,
@@ -73,14 +73,14 @@ export async function gatherPendingConversationsToAnalysis({
                 conversationText: buildConversationText(messages),
             };
 
-            console.log("[gatherPendingConversationsToAnalysis] analyzing conversation with AI", {
+            console.log("[processPendingConversationsToAnalysisAndAdEvents] analyzing conversation with AI", {
                 conversation_id: conversation.id,
                 messages_count: messages.length,
             });
 
             const analysis = await analyzeConversation(analysisInput);
 
-            console.log("[gatherPendingConversationsToAnalysis] analyzed conversation with AI", {
+            console.log("[processPendingConversationsToAnalysisAndAdEvents] analyzed conversation with AI", {
                 conversation_id: analysis.conversation_id,
                 short_label: analysis.short_label,
                 goal: analysis.conversation_goal,
@@ -88,23 +88,21 @@ export async function gatherPendingConversationsToAnalysis({
                 final_state: analysis.customer_final_state,
             });
 
-            await saveConversationAnalysis(analysis);
-
-            const analysisId = await getConversationAnalysisId(analysis.conversation_id);
+            const analysisId = await saveConversationAnalysis(analysis);
 
             await markConversationAsAnalyzed({
                 conversationId: conversation.id,
                 analysisId,
             });
 
-            console.log("[gatherPendingConversationsToAnalysis] analysis and conversation saved to supabase", {
+            console.log("[processPendingConversationsToAnalysisAndAdEvents] analysis and conversation saved to supabase", {
                 conversation_id: conversation.id,
                 conversation_analysis_id: analysisId,
             });
 
             const adEvents = deriveAdEventsFromAnalysis(analysis);
 
-            console.log("[gatherPendingConversationsToAnalysis] ad events derived", {
+            console.log("[processPendingConversationsToAnalysisAndAdEvents] ad events derived", {
                 conversation_id: conversation.id,
                 count: adEvents.length,
                 ad_events: adEvents,
@@ -124,7 +122,7 @@ export async function gatherPendingConversationsToAnalysis({
                     throw clientError;
                 }
 
-                console.log("[gatherPendingConversationsToAnalysis] client ad identity loaded", {
+                console.log("[processPendingConversationsToAnalysisAndAdEvents] client ad identity loaded", {
                     conversation_id: conversation.id,
                     client_id: analysis.client_id,
                     has_phone: Boolean(client.phone),
@@ -140,7 +138,7 @@ export async function gatherPendingConversationsToAnalysis({
                     conversation_ended_at: conversation.ended_at ?? conversation.started_at,
                 });
 
-                console.log("[gatherPendingConversationsToAnalysis] ad events sent to meta", {
+                console.log("[processPendingConversationsToAnalysisAndAdEvents] ad events sent to meta", {
                     conversation_id: conversation.id,
                     meta: metaResult,
                 });
@@ -154,12 +152,12 @@ export async function gatherPendingConversationsToAnalysis({
                     conversation_ended_at: conversation.ended_at ?? conversation.started_at,
                 });
 
-                console.log("[gatherPendingConversationsToAnalysis] ad events sent to google", {
+                console.log("[processPendingConversationsToAnalysisAndAdEvents] ad events sent to google", {
                     conversation_id: conversation.id,
                     google: googleResult,
                 });
             } else {
-                console.log("[gatherPendingConversationsToAnalysis] no ad events sent", {
+                console.log("[processPendingConversationsToAnalysisAndAdEvents] no ad events sent", {
                     conversation_id: conversation.id,
                     reason: "no_ad_events_derived",
                     meta_sent: false,
@@ -178,7 +176,7 @@ export async function gatherPendingConversationsToAnalysis({
                 google: googleResult,
             });
         } catch (error) {
-            console.error("[gatherPendingConversationsToAnalysis] failed processing conversation", {
+            console.error("[processPendingConversationsToAnalysisAndAdEvents] failed processing conversation", {
                 conversation_id: conversation.id,
                 client_id: conversation.client_id,
                 error,
@@ -223,7 +221,7 @@ async function getConversationsWithoutAnalysis({
                 .order("ended_at", { ascending: true });
 
             if (error) {
-                console.error("[gatherPendingConversationsToAnalysis] failed fetching conversations batch", {
+                console.error("[processPendingConversationsToAnalysisAndAdEvents] failed fetching conversations batch", {
                     message: error.message,
                     details: error.details,
                     hint: error.hint,
@@ -292,22 +290,6 @@ async function getConversationMessages(conversationId: string): Promise<Message[
     }
 
     return (data ?? []) as Message[];
-}
-
-async function getConversationAnalysisId(conversationId: string): Promise<string> {
-    const { data, error } = await supabase
-        .from("conversation_analysis")
-        .select("id")
-        .eq("conversation_id", conversationId)
-        .single();
-
-    if (error) {
-        throw new Error(
-            `Failed to fetch conversation analysis id: ${error.message}`
-        );
-    }
-
-    return data.id;
 }
 
 async function markConversationAsAnalyzed({

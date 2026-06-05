@@ -6,15 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-    FileText,
     HelpCircle,
     LayoutDashboard,
     MessageCircle,
     RefreshCcw,
     Megaphone,
-    Settings,
     Flag,
-    Users,
 } from "lucide-react";
 
 type SidePanelItem = {

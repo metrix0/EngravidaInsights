@@ -1,13 +1,105 @@
 // src/components/ui/CalendarButton.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import {useEffect, useRef, useState} from "react";
+import {Calendar, ChevronLeft, ChevronRight} from "lucide-react";
 
 export type DateRange = {
     start: string | null;
     end: string | null;
 };
+
+export type CalendarPresetValue = string;
+
+export type CalendarPreset = {
+    label: string;
+    value: CalendarPresetValue;
+    startOffsetDays: number;
+    endOffsetDays: number;
+};
+
+export const DEFAULT_CALENDAR_PRESETS: CalendarPreset[] = [
+    {
+        label: "Ontem",
+        value: "yesterday",
+        startOffsetDays: -1,
+        endOffsetDays: -1,
+    },
+    {
+        label: "7 dias",
+        value: "7",
+        startOffsetDays: -6,
+        endOffsetDays: 0,
+    },
+    {
+        label: "30 dias",
+        value: "30",
+        startOffsetDays: -29,
+        endOffsetDays: 0,
+    },
+    {
+        label: "90 dias",
+        value: "90",
+        startOffsetDays: -89,
+        endOffsetDays: 0,
+    },
+];
+
+export function getDateStringWithOffset(offsetDays: number) {
+    const date = new Date();
+
+    date.setDate(date.getDate() + offsetDays);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+export function getDateRangeFromPreset(preset: CalendarPreset): DateRange {
+    return {
+        start: getDateStringWithOffset(preset.startOffsetDays),
+        end: getDateStringWithOffset(preset.endOffsetDays),
+    };
+}
+
+export function applyCalendarDateParams({
+                                            params,
+                                            selectedRange,
+                                            selectedPreset,
+                                            presets = DEFAULT_CALENDAR_PRESETS,
+                                        }: {
+    params: URLSearchParams;
+    selectedRange: DateRange;
+    selectedPreset: CalendarPresetValue | null;
+    presets?: CalendarPreset[];
+}) {
+    if (selectedRange.start) {
+        params.set("start_date", selectedRange.start);
+        params.set("end_date", selectedRange.end ?? selectedRange.start);
+        return;
+    }
+
+    const preset = presets.find((item) => item.value === selectedPreset);
+
+    if (preset) {
+        const range = getDateRangeFromPreset(preset);
+
+        params.set("start_date", range.start ?? "");
+        params.set("end_date", range.end ?? range.start ?? "");
+        return;
+    }
+
+    const fallbackPreset = presets[0];
+
+    if (!fallbackPreset) return;
+
+    const fallbackRange = getDateRangeFromPreset(fallbackPreset);
+
+    params.set("start_date", fallbackRange.start ?? "");
+    params.set("end_date", fallbackRange.end ?? fallbackRange.start ?? "");
+}
 
 type CalendarButtonProps = {
     value?: DateRange;
@@ -124,9 +216,9 @@ export default function CalendarButton({
                         ? "w-[245px] bg-brand text-white"
                         : "w-[52px] text-muted hover:bg-slate-50"
                 }`}
-                style={{ borderColor: "var(--color-border)" }}
+                style={{borderColor: "var(--color-border)"}}
             >
-                <Calendar size={16} className="shrink-0" />
+                <Calendar size={16} className="shrink-0"/>
 
                 <span className="min-w-[175px] whitespace-nowrap">
                     {formatRangeLabel(appliedRange)}
@@ -139,7 +231,7 @@ export default function CalendarButton({
                         ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
                         : "pointer-events-none -translate-y-1 scale-98 opacity-0"
                 }`}
-                style={{ borderColor: "var(--color-border)" }}
+                style={{borderColor: "var(--color-border)"}}
             >
                 <CalendarPicker
                     visibleDate={visibleDate}
@@ -203,7 +295,7 @@ function CalendarPicker({
                     onClick={previousMonth}
                     className="cursor-pointer rounded-lg p-2 text-muted transition hover:bg-slate-50"
                 >
-                    <ChevronLeft size={18} />
+                    <ChevronLeft size={18}/>
                 </button>
 
                 <div className="text-sm font-bold capitalize text-text">
@@ -218,7 +310,7 @@ function CalendarPicker({
                     onClick={nextMonth}
                     className="cursor-pointer rounded-lg p-2 text-muted transition hover:bg-slate-50"
                 >
-                    <ChevronRight size={18} />
+                    <ChevronRight size={18}/>
                 </button>
             </div>
 
@@ -236,7 +328,7 @@ function CalendarPicker({
                 {days.map((day) => {
                     const selected = isSelected(day.dateString, selectedRange);
                     const inRange = isInRange(day.dateString, selectedRange);
-                    const disabled = day.dateString >= todayString;
+                    const disabled = day.dateString > todayString;
 
                     return (
                         <button
@@ -275,7 +367,7 @@ function getCalendarDays(year: number, month: number) {
 
     const startDate = new Date(year, month, 1 - startDay);
 
-    return Array.from({ length: 42 }).map((_, index) => {
+    return Array.from({length: 42}).map((_, index) => {
         const date = new Date(startDate);
         date.setDate(startDate.getDate() + index);
 
@@ -333,3 +425,14 @@ export const __uiDemo = {
   onApply={() => setPeriod(null)}
 />`,
 };
+
+export function applyArrayParams(
+    params: URLSearchParams,
+    entries: Record<string, string[]>
+) {
+    for (const [key, values] of Object.entries(entries)) {
+        if (values.length > 0) {
+            params.set(key, values.join(","));
+        }
+    }
+}

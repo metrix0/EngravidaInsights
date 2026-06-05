@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 
 import { messageToConversations } from "@/lib/conversations/messagesToConversations";
-import { gatherPendingConversationsToAnalysis } from "@/lib/conversations/gatherPendingConversationsToAnalysis";
+import { processPendingConversationsToAnalysisAndAdEvents } from "@/lib/conversations/processPendingConversationsToAnalysisAndAdEvents";
 import { matchMessagesSenderName } from "@/lib/messages/matchMessagesSenderName";
 import { matchConversationsSheetAttribution } from "@/lib/conversations/matchConversationsSheetAttribution";
 
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 
         console.log("[/api/analyze] gathering pending conversations to analysis");
 
-        const results = await gatherPendingConversationsToAnalysis({
+        const results = await processPendingConversationsToAnalysisAndAdEvents({
             limit,
             conversationIds: senderNameMatch.ready_conversation_ids,
         });

@@ -1,13 +1,18 @@
 // src/app/jornada/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import {
-    BarChart3,
     HelpCircle,
-    MapPin,
     User,
 } from "lucide-react";
+import {
+    applyArrayParams,
+    applyCalendarDateParams,
+
+    type CalendarPresetValue,
+    type DateRange,
+} from "@/components/ui/CalendarButton";
 import {
     Bar,
     BarChart,
@@ -22,11 +27,11 @@ import {
     YAxis,
 } from "recharts";
 
-import type { FiltersResponse } from "@/types";
+import type {FiltersResponse} from "@/types";
 
 import {
-    ButtonGroup,
-    CalendarButton,
+    MainFilters,
+    DashboardHeader,
     Card,
     FilterButton,
     InfoTooltip,
@@ -35,12 +40,6 @@ import {
     Skeleton,
 } from "@/components";
 
-type Period = "yesterday" | "7" | "30" | "90";
-
-type DateRange = {
-    start: string | null;
-    end: string | null;
-};
 
 type JourneyDashboardData = {
     journey_funnel: {
@@ -78,13 +77,11 @@ export default function JourneyPage() {
     const [filters, setFilters] = useState<FiltersResponse | null>(null);
     const [data, setData] = useState<JourneyDashboardData | null>(null);
 
-    const [unitIds, setUnitIds] = useState<string[]>([]);
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
-    const [serviceIds, setServiceIds] = useState<string[]>([]);
     const [tunnelValues, setTunnelValues] = useState<string[]>([]);
     const [originValues, setOriginValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("yesterday");
+    const [period, setPeriod] = useState<CalendarPresetValue | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
@@ -98,7 +95,7 @@ export default function JourneyPage() {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,attendants,services,tunnels,origins"
+                    "/api/dashboard/filters?entities=attendants,tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -121,37 +118,17 @@ export default function JourneyPage() {
 
             const params = new URLSearchParams();
 
-            if (selectedRange.start) {
-                params.set("start_date", selectedRange.start);
-                params.set("end_date", selectedRange.end ?? selectedRange.start);
-            } else if (period === "yesterday") {
-                const yesterday = getYesterdayDateString();
+            applyCalendarDateParams({
+                params,
+                selectedRange,
+                selectedPreset: period,
+            });
 
-                params.set("start_date", yesterday);
-                params.set("end_date", yesterday);
-            } else {
-                params.set("days", period ?? "7");
-            }
-
-            if (unitIds.length > 0) {
-                params.set("unit_ids", unitIds.join(","));
-            }
-
-            if (attendantIds.length > 0) {
-                params.set("attendant_ids", attendantIds.join(","));
-            }
-
-            if (serviceIds.length > 0) {
-                params.set("service_ids", serviceIds.join(","));
-            }
-
-            if (tunnelValues.length > 0) {
-                params.set("tunnels", tunnelValues.join(","));
-            }
-
-            if (originValues.length > 0) {
-                params.set("origins", originValues.join(","));
-            }
+applyArrayParams(params, {
+    attendant_ids: attendantIds,
+    tunnels: tunnelValues,
+    origins: originValues,
+});
 
             try {
                 const response = await fetch(
@@ -187,9 +164,7 @@ export default function JourneyPage() {
 
         loadData();
     }, [
-        unitIds,
         attendantIds,
-        serviceIds,
         tunnelValues,
         originValues,
         period,
@@ -199,10 +174,10 @@ export default function JourneyPage() {
     if (loadingFilters || loadingData) {
         return (
             <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-                <SidePanel />
+                <SidePanel/>
 
                 <section className="flex-1 px-8 py-8">
-                    <JourneySkeleton />
+                    <JourneySkeleton/>
                 </section>
             </main>
         );
@@ -211,7 +186,7 @@ export default function JourneyPage() {
     if (!data) {
         return (
             <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-                <SidePanel />
+                <SidePanel/>
 
                 <section className="flex-1 px-8 py-8">
                     Nenhum dado encontrado.
@@ -222,10 +197,12 @@ export default function JourneyPage() {
 
     return (
         <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-            <SidePanel />
+            <SidePanel/>
 
             <section className="flex-1 px-8 py-8">
-                <Header
+                <DashboardHeader
+                    title="Jornada"
+                    description="Entenda o caminho dos clientes ao longo do atendimento"
                     period={period}
                     setPeriod={setPeriod}
                     selectedRange={selectedRange}
@@ -233,62 +210,40 @@ export default function JourneyPage() {
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
-                    <span className={"hidden"}>
-                    <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as unidades"
-                        values={unitIds}
-                        onChange={setUnitIds}
-                        options={filters?.units ?? []}
-                    /></span>
+
 
                     <FilterButton
-                        icon={<User size={16} />}
+                        icon={<User size={16}/>}
                         label="Todos os atendentes"
                         values={attendantIds}
                         onChange={setAttendantIds}
                         options={filters?.attendants ?? []}
                     />
 
-                    <span className={"hidden"}>
-                    <FilterButton
-                        icon={<BarChart3 size={16} />}
-                        label="Todos os serviços"
-                        values={serviceIds}
-                        onChange={setServiceIds}
-                        options={filters?.services ?? []}
-                    />
-</span>
 
-                    <FilterButton
-                        icon={<BarChart3 size={16} />}
-                        label="Todos os túneis"
-                        values={tunnelValues}
-                        onChange={setTunnelValues}
-                        options={(filters as any)?.tunnels ?? []}
-                    />
 
-                    <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as origens"
-                        values={originValues}
-                        onChange={setOriginValues}
-                        options={(filters as any)?.origins ?? []}
-                    />
+<MainFilters
+    tunnels={filters?.tunnels}
+    origins={filters?.origins}
+    tunnelValues={tunnelValues}
+    setTunnelValues={setTunnelValues}
+    originValues={originValues}
+    setOriginValues={setOriginValues}
+/>
                 </div>
 
                 {isRefreshing ? (
-                    <JourneyBodySkeleton />
+                    <JourneyBodySkeleton/>
                 ) : (
                     <div className="overflow-x-hidden pb-12">
                         <section className="mb-6 grid grid-cols-[1.55fr_0.85fr] gap-5">
-                            <JourneyFunnelCard data={data} />
-                            <DropoffCard data={data} />
+                            <JourneyFunnelCard data={data}/>
+                            <DropoffCard data={data}/>
                         </section>
 
                         <section className="mb-6 grid grid-cols-[1.5fr_0.9fr] gap-5">
-                            <IntentPathsCard data={data} />
-                            <ObjectionsCard data={data} />
+                            <IntentPathsCard data={data}/>
+                            <ObjectionsCard data={data}/>
                         </section>
                     </div>
                 )}
@@ -297,70 +252,16 @@ export default function JourneyPage() {
     );
 }
 
-function Header({
-                    period,
-                    setPeriod,
-                    selectedRange,
-                    setSelectedRange,
-                }: {
-    period: Period | null;
-    setPeriod: (value: Period | null) => void;
-    selectedRange: DateRange;
-    setSelectedRange: (value: DateRange) => void;
-}) {
-    return (
-        <header className="mb-8 flex items-start justify-between">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-                    Jornada
-                </h1>
 
-                <p className="mt-2 text-sm text-slate-500">
-                    Entenda o caminho dos clientes ao longo do atendimento
-                </p>
-            </div>
-
-            <ButtonGroup
-                value={period}
-                onChange={(value) => {
-                    setPeriod(value);
-                    setSelectedRange({
-                        start: null,
-                        end: null,
-                    });
-                }}
-                options={[
-                    { value: "yesterday", label: "Ontem" },
-                    { value: "7", label: "7 dias" },
-                    { value: "30", label: "30 dias" },
-                    { value: "90", label: "90 dias" },
-                ]}
-            >
-                <CalendarButton
-                    value={selectedRange}
-                    onChange={setSelectedRange}
-                    onApply={(range) => {
-                        if (range.start) {
-                            setPeriod(null);
-                            return;
-                        }
-
-                        setPeriod("yesterday");
-                    }}
-                />
-            </ButtonGroup>
-        </header>
-    );
-}
-
-function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
+function JourneyFunnelCard({data}: { data: JourneyDashboardData }) {
     return (
         <Card>
             <div className="mb-5 flex items-center gap-2">
                 <h2 className="text-lg font-bold">Funil da jornada</h2>
 
-                <InfoTooltip text="Este funil apenas apresentará a segunda etapa, se o cliente já tiver completado a primeira etapa, e assim por diante. Por exemplo, para aparecer a etapa 'Agendamento', o cliente precisa ter completado a etapa 'Consulta online' antes.">
-                    <HelpCircle size={16} className="text-slate-400" />
+                <InfoTooltip
+                    text="Este funil apenas apresentará a segunda etapa, se o cliente já tiver completado a primeira etapa, e assim por diante. Por exemplo, para aparecer a etapa 'Agendamento', o cliente precisa ter completado a etapa 'Consulta online' antes.">
+                    <HelpCircle size={16} className="text-slate-400"/>
                 </InfoTooltip>
             </div>
 
@@ -368,7 +269,7 @@ function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <FunnelChart>
-                            <Tooltip />
+                            <Tooltip/>
                             <Funnel
                                 dataKey="value"
                                 data={data.journey_funnel}
@@ -382,7 +283,7 @@ function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
                                 />
 
                                 {data.journey_funnel.map((item) => (
-                                    <Cell key={item.key} fill={item.fill} />
+                                    <Cell key={item.key} fill={item.fill}/>
                                 ))}
                             </Funnel>
                         </FunnelChart>
@@ -398,7 +299,7 @@ function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
                             <div className="flex min-w-0 items-center gap-3">
                                 <span
                                     className="h-3 w-3 shrink-0 rounded-full"
-                                    style={{ backgroundColor: item.fill }}
+                                    style={{backgroundColor: item.fill}}
                                 />
 
                                 <span className="min-w-0 font-medium text-slate-700 truncate" title={item.name}>
@@ -427,7 +328,7 @@ function JourneyFunnelCard({ data }: { data: JourneyDashboardData }) {
     );
 }
 
-function DropoffCard({ data }: { data: JourneyDashboardData }) {
+function DropoffCard({data}: { data: JourneyDashboardData }) {
     return (
         <Card>
             <div className="mb-5">
@@ -435,7 +336,7 @@ function DropoffCard({ data }: { data: JourneyDashboardData }) {
                     <h2 className="text-lg font-bold">Pontos de abandono</h2>
 
                     <InfoTooltip text="Mostra em quais momentos os clientes mais abandonaram a jornada.">
-                        <HelpCircle size={16} className="text-slate-400" />
+                        <HelpCircle size={16} className="text-slate-400"/>
                     </InfoTooltip>
                 </div>
             </div>
@@ -443,7 +344,8 @@ function DropoffCard({ data }: { data: JourneyDashboardData }) {
             <div className="space-y-7">
                 {data.dropoff_moments.map((item, index) => (
                     <div key={item.moment} className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple text-xs font-bold text-white">
+                        <span
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-purple text-xs font-bold text-white">
                             {index + 1}
                         </span>
 
@@ -458,20 +360,20 @@ function DropoffCard({ data }: { data: JourneyDashboardData }) {
                                 </span>
                             </div>
 
-                            <PercentageBar value={item.percentage} color="purple" />
+                            <PercentageBar value={item.percentage} color="purple"/>
                         </div>
                     </div>
                 ))}
 
                 {data.dropoff_moments.length === 0 && (
-                    <EmptyCardMessage message="Nenhum abandono encontrado no período." />
+                    <EmptyCardMessage message="Nenhum abandono encontrado no período."/>
                 )}
             </div>
         </Card>
     );
 }
 
-function IntentPathsCard({ data }: { data: JourneyDashboardData }) {
+function IntentPathsCard({data}: { data: JourneyDashboardData }) {
     return (
         <Card>
             <div className="mb-5">
@@ -481,32 +383,32 @@ function IntentPathsCard({ data }: { data: JourneyDashboardData }) {
                     </h2>
 
                     <InfoTooltip text="Mostra o resultado das conversas agrupado pela intenção inicial do cliente.">
-                        <HelpCircle size={16} className="text-slate-400" />
+                        <HelpCircle size={16} className="text-slate-400"/>
                     </InfoTooltip>
                 </div>
 
                 <div className="mt-3 flex items-center gap-6 text-xs text-slate-500">
-                    <LegendDot color="green" label="Resolvida" />
-                    <LegendDot color="orange" label="Parcial" />
-                    <LegendDot color="red" label="Abandonou" />
+                    <LegendDot color="green" label="Resolvida"/>
+                    <LegendDot color="orange" label="Parcial"/>
+                    <LegendDot color="red" label="Abandonou"/>
                 </div>
             </div>
 
             <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.intent_paths} barCategoryGap="28%">
-                        <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+                        <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0"/>
                         <XAxis
                             dataKey="intent"
-                            tick={{ fontSize: 12 }}
+                            tick={{fontSize: 12}}
                             stroke="#94a3b8"
                             interval={0}
                             angle={-18}
                             textAnchor="end"
                             height={65}
                         />
-                        <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                        <Tooltip content={<IntentPathsTooltip />} cursor={false} />
+                        <YAxis tick={{fontSize: 12}} stroke="#94a3b8"/>
+                        <Tooltip content={<IntentPathsTooltip/>} cursor={false}/>
 
                         <Bar
                             dataKey="resolved"
@@ -530,15 +432,16 @@ function IntentPathsCard({ data }: { data: JourneyDashboardData }) {
     );
 }
 
-function ObjectionsCard({ data }: { data: JourneyDashboardData }) {
+function ObjectionsCard({data}: { data: JourneyDashboardData }) {
     return (
         <Card>
             <div className="mb-5">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold">Principais objeções</h2>
 
-                    <InfoTooltip text="Mostra as objeções mais comuns dentro das conversas, como preço, disponibilidade ou incerteza médica.">
-                        <HelpCircle size={16} className="text-slate-400" />
+                    <InfoTooltip
+                        text="Mostra as objeções mais comuns dentro das conversas, como preço, disponibilidade ou incerteza médica.">
+                        <HelpCircle size={16} className="text-slate-400"/>
                     </InfoTooltip>
                 </div>
 
@@ -550,7 +453,8 @@ function ObjectionsCard({ data }: { data: JourneyDashboardData }) {
             <div className="space-y-4">
                 {data.objections.map((item, index) => (
                     <div key={item.type} className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple text-xs font-bold text-white">
+                        <span
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-purple text-xs font-bold text-white">
                             {index + 1}
                         </span>
 
@@ -565,20 +469,20 @@ function ObjectionsCard({ data }: { data: JourneyDashboardData }) {
                                 </span>
                             </div>
 
-                            <PercentageBar value={item.percentage} color="purple" />
+                            <PercentageBar value={item.percentage} color="purple"/>
                         </div>
                     </div>
                 ))}
 
                 {data.objections.length === 0 && (
-                    <EmptyCardMessage message="Nenhuma objeção encontrada no período." />
+                    <EmptyCardMessage message="Nenhuma objeção encontrada no período."/>
                 )}
             </div>
         </Card>
     );
 }
 
-function EmptyCardMessage({ message }: { message: string }) {
+function EmptyCardMessage({message}: { message: string }) {
     return (
         <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
             {message}
@@ -597,7 +501,7 @@ function LegendDot({
         <div className="flex items-center gap-2">
             <span
                 className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: `var(--color-${color})` }}
+                style={{backgroundColor: `var(--color-${color})`}}
             />
             <span>{label}</span>
         </div>
@@ -609,20 +513,20 @@ function JourneySkeleton() {
         <>
             <div className="mb-8 flex items-start justify-between">
                 <div>
-                    <Skeleton className="h-9 w-[180px]" />
-                    <Skeleton className="mt-3 h-4 w-[420px]" />
+                    <Skeleton className="h-9 w-[180px]"/>
+                    <Skeleton className="mt-3 h-4 w-[420px]"/>
                 </div>
 
-                <Skeleton className="h-12 w-[310px]" />
+                <Skeleton className="h-12 w-[310px]"/>
             </div>
 
             <div className="mb-8 flex justify-end gap-3">
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[220px]" />
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[220px]"/>
             </div>
 
-            <JourneyBodySkeleton />
+            <JourneyBodySkeleton/>
         </>
     );
 }
@@ -632,15 +536,15 @@ function JourneyBodySkeleton() {
         <>
             <section className="mb-6 grid grid-cols-[1.6fr_0.8fr] gap-5">
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[35%]" />
-                    <Skeleton className="h-[280px] w-full" />
+                    <Skeleton className="mb-6 h-6 w-[35%]"/>
+                    <Skeleton className="h-[280px] w-full"/>
                 </Card>
 
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[45%]" />
+                    <Skeleton className="mb-6 h-6 w-[45%]"/>
                     <div className="space-y-5">
-                        {Array.from({ length: 4 }).map((_, index) => (
-                            <Skeleton key={index} className="h-8 w-full" />
+                        {Array.from({length: 4}).map((_, index) => (
+                            <Skeleton key={index} className="h-8 w-full"/>
                         ))}
                     </div>
                 </Card>
@@ -648,15 +552,15 @@ function JourneyBodySkeleton() {
 
             <section className="mb-6 grid grid-cols-[1.5fr_0.9fr] gap-5">
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[45%]" />
-                    <Skeleton className="h-[260px] w-full" />
+                    <Skeleton className="mb-6 h-6 w-[45%]"/>
+                    <Skeleton className="h-[260px] w-full"/>
                 </Card>
 
                 <Card>
-                    <Skeleton className="mb-6 h-6 w-[45%]" />
+                    <Skeleton className="mb-6 h-6 w-[45%]"/>
                     <div className="space-y-5">
-                        {Array.from({ length: 5 }).map((_, index) => (
-                            <Skeleton key={index} className="h-8 w-full" />
+                        {Array.from({length: 5}).map((_, index) => (
+                            <Skeleton key={index} className="h-8 w-full"/>
                         ))}
                     </div>
                 </Card>
@@ -732,14 +636,4 @@ function IntentPathsTooltip({
         </div>
     );
 }
-function getYesterdayDateString() {
-    const date = new Date();
 
-    date.setDate(date.getDate() - 1);
-
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-}

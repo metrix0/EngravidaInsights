@@ -444,23 +444,6 @@ function getDropoffLabel(moment: string): string {
     return labels[moment] ?? moment;
 }
 
-function getDropoffRecommendation(moment: string): string {
-    const recommendations: Record<string, string> = {
-        after_price:
-            "Reforçar valor percebido antes de apresentar preço e reduzir fricção na explicação.",
-        after_consultation_online:
-            "Apresentar a consulta online como triagem inicial com valor menor.",
-        after_schedule_options:
-            "Simplificar as opções de horário e sugerir diretamente os melhores próximos horários.",
-        after_medical_question:
-            "Criar resposta padrão com acolhimento e encaminhamento claro para avaliação médica.",
-        after_delay:
-            "Reduzir tempo de primeira resposta humana nos horários de pico.",
-    };
-
-    return recommendations[moment] ?? "Revisar conversas afetadas para identificar o padrão de perda.";
-}
-
 function parseIds(value: string | null): string[] {
     if (!value) return [];
 

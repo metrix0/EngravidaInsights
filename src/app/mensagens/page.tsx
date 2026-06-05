@@ -1,41 +1,39 @@
 // src/app/mensagens/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import {
-    BarChart3,
-    ChevronLeft,
-    ChevronRight,
-    MapPin,
     User,
-    CircleAlert,
+    CircleAlert, ChevronRight,
 } from "lucide-react";
-import { ConversationPanel } from "@/components/conversations/ConversationPanel";
+import {ConversationPanel} from "@/components/conversations/ConversationPanel";
+import {
+    applyArrayParams,
+    applyCalendarDateParams,
 
-import type { FiltersResponse } from "@/types";
+    type CalendarPresetValue,
+    type DateRange,
+} from "@/components/ui/CalendarButton";
+
+import type {FiltersResponse} from "@/types";
 
 import {
-    ButtonGroup,
-    CalendarButton,
+    MainFilters,
+    DashboardHeader,
     FilterButton,
     SidePanel,
     Skeleton,
+    Pagination
 } from "@/components";
 
-import { InitialsAvatar } from "@/components/conversations/InitialsAvatar";
+import {InitialsAvatar} from "@/components/conversations/InitialsAvatar";
 import {
     ConversationResultBadge,
     type ConversationResult,
 } from "@/components/conversations/ConversationResultBadge";
-import { SearchFilter } from "@/components/conversations/SearchFilter";
+import {SearchFilter} from "@/components/conversations/SearchFilter";
 import AdvancedFilterButton from "@/components/ui/AdvancedFilterButton";
 
-type Period = "yesterday" | "7" | "30" | "90";
-
-type DateRange = {
-    start: string | null;
-    end: string | null;
-};
 
 type ConversationRow = {
     id: string;
@@ -63,9 +61,7 @@ const PAGE_SIZE = 50;
 export default function MessagesPage() {
     const [filters, setFilters] = useState<FiltersResponse | null>(null);
 
-    const [unitIds, setUnitIds] = useState<string[]>([]);
     const [attendantIds, setAttendantIds] = useState<string[]>([]);
-    const [serviceIds, setServiceIds] = useState<string[]>([]);
     const [tunnelValues, setTunnelValues] = useState<string[]>([]);
     const [originValues, setOriginValues] = useState<string[]>([]);
 
@@ -73,7 +69,7 @@ export default function MessagesPage() {
     const [resultValues, setResultValues] = useState<string[]>([]);
     const [notableValues, setNotableValues] = useState<string[]>([]);
 
-    const [period, setPeriod] = useState<Period | null>("yesterday");
+    const [period, setPeriod] = useState<CalendarPresetValue | null>("yesterday");
     const [selectedRange, setSelectedRange] = useState<DateRange>({
         start: null,
         end: null,
@@ -91,11 +87,18 @@ export default function MessagesPage() {
     const [loadingFilters, setLoadingFilters] = useState(true);
     const [loadingConversations, setLoadingConversations] = useState(true);
 
+    function resetPageAndSet<T>(setter: (value: T) => void) {
+        return (value: T) => {
+            setCurrentPage(1);
+            setter(value);
+        };
+    }
+
     useEffect(() => {
         async function loadFilters() {
             try {
                 const response = await fetch(
-                    "/api/dashboard/filters?entities=units,attendants,services,tunnels,origins"
+                    "/api/dashboard/filters?entities=attendants,tunnels,origins"
                 );
                 const json: FiltersResponse = await response.json();
 
@@ -108,21 +111,6 @@ export default function MessagesPage() {
         loadFilters();
     }, []);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [
-        period,
-        selectedRange,
-        search,
-        unitIds,
-        attendantIds,
-        serviceIds,
-        tunnelValues,
-        originValues,
-        goalValues,
-        resultValues,
-        notableValues,
-    ]);
 
     useEffect(() => {
         async function loadConversations() {
@@ -133,40 +121,21 @@ export default function MessagesPage() {
             params.set("page", String(currentPage));
             params.set("page_size", String(PAGE_SIZE));
 
-if (selectedRange.start) {
-    params.set("start_date", selectedRange.start);
-    params.set("end_date", selectedRange.end ?? selectedRange.start);
-} else if (period === "yesterday") {
-    const yesterday = getYesterdayDateString();
-
-    params.set("start_date", yesterday);
-    params.set("end_date", yesterday);
-} else {
-    params.set("days", period ?? "7");
-}
+            applyCalendarDateParams({
+                params,
+                selectedRange,
+                selectedPreset: period,
+            });
 
             if (search.trim()) {
                 params.set("search", search.trim());
             }
 
-            if (unitIds.length > 0) {
-                params.set("unit_ids", unitIds.join(","));
-            }
-
-            if (attendantIds.length > 0) {
-                params.set("attendant_ids", attendantIds.join(","));
-            }
-
-            if (serviceIds.length > 0) {
-                params.set("service_ids", serviceIds.join(","));
-            }
-            if (tunnelValues.length > 0) {
-                params.set("tunnels", tunnelValues.join(","));
-            }
-
-            if (originValues.length > 0) {
-                params.set("origins", originValues.join(","));
-            }
+            applyArrayParams(params, {
+                attendant_ids: attendantIds,
+                tunnels: tunnelValues,
+                origins: originValues,
+            });
 
             if (goalValues.length > 0) {
                 params.set("conversation_goals", goalValues.join(","));
@@ -199,9 +168,7 @@ if (selectedRange.start) {
         period,
         selectedRange,
         search,
-        unitIds,
         attendantIds,
-        serviceIds,
         tunnelValues,
         originValues,
         goalValues,
@@ -219,10 +186,10 @@ if (selectedRange.start) {
     if (loadingFilters && loadingConversations) {
         return (
             <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-                <SidePanel />
+                <SidePanel/>
 
                 <section className="flex-1 px-8 py-8">
-                    <MessagesSkeleton />
+                    <MessagesSkeleton/>
                 </section>
             </main>
         );
@@ -230,58 +197,37 @@ if (selectedRange.start) {
 
     return (
         <main className="flex h-screen w-screen overflow-y-scroll bg-white text-slate-900">
-            <SidePanel />
+            <SidePanel/>
 
             <section className="flex-1 px-8 py-8">
-                <Header
+                <DashboardHeader
+                    title="Mensagens"
+                    description="Visualize e explore todas as conversas com seus clientes"
                     period={period}
-                    setPeriod={setPeriod}
+                    setPeriod={resetPageAndSet(setPeriod)}
                     selectedRange={selectedRange}
-                    setSelectedRange={setSelectedRange}
+                    setSelectedRange={resetPageAndSet(setSelectedRange)}
                 />
 
                 <div className="mb-8 flex justify-end gap-3">
-                    <FilterButton
-                        icon={<BarChart3 size={16} />}
-                        label="Todos os túneis"
-                        values={tunnelValues}
-                        onChange={setTunnelValues}
-                        options={(filters as any)?.tunnels ?? []}
-                    />
 
                     <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as origens"
-                        values={originValues}
-                        onChange={setOriginValues}
-                        options={(filters as any)?.origins ?? []}
-                    />
-                    <span className={"hidden"}>
-                    <FilterButton
-                        icon={<MapPin size={16} />}
-                        label="Todas as unidades"
-                        values={unitIds}
-                        onChange={setUnitIds}
-                        options={filters?.units ?? []}
-                    /></span>
-
-                    <FilterButton
-                        icon={<User size={16} />}
+                        icon={<User size={16}/>}
                         label="Todos os atendentes"
                         values={attendantIds}
-                        onChange={setAttendantIds}
+                        onChange={resetPageAndSet(setAttendantIds)}
                         options={filters?.attendants ?? []}
                     />
-
-<span className={"hidden"}>
-                    <FilterButton
-                        icon={<BarChart3 size={16} />}
-                        label="Todos os serviços"
-                        values={serviceIds}
-                        onChange={setServiceIds}
-                        options={filters?.services ?? []}
+                    <MainFilters
+                        tunnels={filters?.tunnels}
+                        origins={filters?.origins}
+                        tunnelValues={tunnelValues}
+                        setTunnelValues={resetPageAndSet(setTunnelValues)}
+                        originValues={originValues}
+                        setOriginValues={resetPageAndSet(setOriginValues)}
                     />
-</span>
+
+
                 </div>
 
                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
@@ -293,7 +239,7 @@ if (selectedRange.start) {
                     </h2>
 
                     <div className="flex items-center gap-3">
-                        <SearchFilter value={search} onChange={setSearch} />
+                        <SearchFilter value={search} onChange={resetPageAndSet(setSearch)}/>
 
                         <AdvancedFilterButton
                             sections={[
@@ -301,38 +247,38 @@ if (selectedRange.start) {
                                     id: "goal",
                                     title: "Objetivo",
                                     values: goalValues,
-                                    onChange: setGoalValues,
+                                    onChange: resetPageAndSet(setGoalValues),
                                     options: [
-                                        { label: "Informação", value: "answer_information" },
-                                        { label: "Agendar consulta", value: "schedule_consultation" },
-                                        { label: "Reagendar", value: "reschedule_consultation" },
-                                        { label: "Confirmar presença", value: "confirm_attendance" },
-                                        { label: "Explicar tratamento", value: "explain_treatment" },
-                                        { label: "Objeção de preço", value: "handle_price_objection" },
-                                        { label: "Outro", value: "other" },
+                                        {label: "Informação", value: "answer_information"},
+                                        {label: "Agendar consulta", value: "schedule_consultation"},
+                                        {label: "Reagendar", value: "reschedule_consultation"},
+                                        {label: "Confirmar presença", value: "confirm_attendance"},
+                                        {label: "Explicar tratamento", value: "explain_treatment"},
+                                        {label: "Objeção de preço", value: "handle_price_objection"},
+                                        {label: "Outro", value: "other"},
                                     ],
                                 },
                                 {
                                     id: "result",
                                     title: "Resultado",
                                     values: resultValues,
-                                    onChange: setResultValues,
+                                    onChange: resetPageAndSet(setResultValues),
                                     options: [
-                                        { label: "Resolvida", value: "resolvida" },
-                                        { label: "Parcial", value: "parcial" },
-                                        { label: "Não resolvida", value: "nao_resolvida" },
-                                        { label: "Pendente", value: "pendente" },
+                                        {label: "Resolvida", value: "resolvida"},
+                                        {label: "Parcial", value: "parcial"},
+                                        {label: "Não resolvida", value: "nao_resolvida"},
+                                        {label: "Pendente", value: "pendente"},
                                     ],
                                 },
                                 {
                                     id: "notable",
                                     title: "Notável",
                                     values: notableValues,
-                                    onChange: setNotableValues,
+                                    onChange: resetPageAndSet(setNotableValues),
                                     multi: false,
                                     options: [
-                                        { label: "Notáveis", value: "true" },
-                                        { label: "Não notáveis", value: "false" },
+                                        {label: "Notáveis", value: "true"},
+                                        {label: "Não notáveis", value: "false"},
                                     ],
                                 },
                             ]}
@@ -341,7 +287,7 @@ if (selectedRange.start) {
                 </div>
 
                 {loadingConversations ? (
-                    <MessagesTableSkeleton />
+                    <MessagesTableSkeleton/>
                 ) : (
                     <ConversationTable
                         conversations={conversations}
@@ -378,61 +324,6 @@ if (selectedRange.start) {
     );
 }
 
-function Header({
-                    period,
-                    setPeriod,
-                    selectedRange,
-                    setSelectedRange,
-                }: {
-    period: Period | null;
-    setPeriod: (value: Period | null) => void;
-    selectedRange: DateRange;
-    setSelectedRange: (value: DateRange) => void;
-}) {
-    return (
-        <header className="mb-8 flex items-start justify-between">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-                    Mensagens
-                </h1>
-
-                <p className="mt-2 text-sm text-slate-500">
-                    Visualize e explore todas as conversas com seus clientes
-                </p>
-            </div>
-
-            <ButtonGroup
-                value={period}
-                onChange={(value) => {
-                    setPeriod(value);
-                    setSelectedRange({
-                        start: null,
-                        end: null,
-                    });
-                }}
-options={[
-    { value: "yesterday", label: "Ontem" },
-    { value: "7", label: "7 dias" },
-    { value: "30", label: "30 dias" },
-    { value: "90", label: "90 dias" },
-]}
-            >
-                <CalendarButton
-                    value={selectedRange}
-                    onChange={setSelectedRange}
-onApply={(range) => {
-    if (range.start) {
-        setPeriod(null);
-        return;
-    }
-
-    setPeriod("yesterday");
-}}
-                />
-            </ButtonGroup>
-        </header>
-    );
-}
 
 function ConversationTable({
                                conversations,
@@ -443,7 +334,8 @@ function ConversationTable({
 }) {
     return (
         <div className="overflow-hidden">
-            <div className="grid grid-cols-[1.35fr_1fr_1.85fr_1.35fr_1.35fr_1fr_48px_48px] border-b border-slate-100 bg-slate-50 px-6 py-3 text-xs font-bold text-slate-500">
+            <div
+                className="grid grid-cols-[1.35fr_1fr_1.85fr_1.35fr_1.35fr_1fr_48px_48px] border-b border-slate-100 bg-slate-50 px-6 py-3 text-xs font-bold text-slate-500">
                 <div>Atendente</div>
                 <div>Telefone</div>
                 <div>Data</div>
@@ -451,7 +343,7 @@ function ConversationTable({
                 <div>Objetivo</div>
                 <div>Resultado</div>
                 <div>Notável</div>
-                <div />
+                <div/>
             </div>
 
             {conversations.map((conversation) => (
@@ -462,7 +354,7 @@ function ConversationTable({
                     className="group grid w-full cursor-pointer grid-cols-[1.35fr_1fr_1.85fr_1.35fr_1.35fr_1fr_48px_48px] items-center border-b border-slate-100 px-6 py-4 text-left text-sm transition-colors hover:bg-selection/80"
                 >
                     <div className="flex min-w-0 items-center gap-3">
-                        <InitialsAvatar name={conversation.attendant_name} />
+                        <InitialsAvatar name={conversation.attendant_name}/>
 
                         <span
                             title={conversation.attendant_name}
@@ -499,16 +391,16 @@ function ConversationTable({
                     </div>
 
                     <div>
-                        <ConversationResultBadge result={conversation.result} />
+                        <ConversationResultBadge result={conversation.result}/>
                     </div>
 
                     <div>
-                        <NotableBadge notable={conversation.notable} />
+                        <NotableBadge notable={conversation.notable}/>
                     </div>
 
                     <div className="flex justify-end">
                         <ChevronRight
-                            size={18}
+                            size={16}
                             className="text-slate-400 transition-colors group-hover:text-slate-700"
                         />
                     </div>
@@ -570,132 +462,52 @@ function formatTime(date: Date) {
     });
 }
 
-function NotableBadge({ notable }: { notable: boolean }) {
+function NotableBadge({notable}: { notable: boolean }) {
     if (!notable) {
         return <span className="ml-2 text-sm text-slate-400"></span>;
     }
 
     return (
         <span className="inline-flex w-full justify-center font-bold text-slate-500">
-            <CircleAlert className="h-4 w-4" />
+            <CircleAlert className="h-4 w-4"/>
         </span>
     );
 }
 
-function Pagination({
-                        totalPages,
-                        currentPage,
-                        onPageChange,
-                    }: {
-    totalPages: number;
-    currentPage: number;
-    onPageChange: (page: number) => void;
-}) {
-    const pages = getPaginationPages(totalPages, currentPage);
-
-    return (
-        <div className="flex items-center gap-2">
-            <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => onPageChange(currentPage - 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                <ChevronLeft size={18} />
-            </button>
-
-            {pages.map((page, index) =>
-                page === "..." ? (
-                    <div
-                        key={`ellipsis-${index}`}
-                        className="flex h-10 w-10 items-center justify-center text-slate-500"
-                    >
-                        ...
-                    </div>
-                ) : (
-                    <button
-                        key={page}
-                        type="button"
-                        onClick={() => onPageChange(page)}
-                        className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
-                            page === currentPage
-                                ? "bg-purple-soft text-purple"
-                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                    >
-                        {page}
-                    </button>
-                )
-            )}
-
-            <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => onPageChange(currentPage + 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                <ChevronRight size={18} />
-            </button>
-        </div>
-    );
-}
-
-type PaginationPage = number | "...";
-
-function getPaginationPages(
-    totalPages: number,
-    currentPage: number
-): PaginationPage[] {
-    if (totalPages <= 1) return [1];
-
-    if (totalPages <= 5) {
-        return Array.from({ length: totalPages }, (_, index) => index + 1);
-    }
-
-    if (currentPage <= 3) {
-        return [1, 2, 3, "...", totalPages];
-    }
-
-    if (currentPage >= totalPages - 2) {
-        return [1, "...", totalPages - 2, totalPages - 1, totalPages];
-    }
-
-    return [1, "...", currentPage, "...", totalPages];
-}
 
 function MessagesSkeleton() {
     return (
         <>
             <div className="mb-8 flex items-start justify-between">
                 <div>
-                    <Skeleton className="h-9 w-[220px]" />
-                    <Skeleton className="mt-3 h-4 w-[360px]" />
+                    <Skeleton className="h-9 w-[220px]"/>
+                    <Skeleton className="mt-3 h-4 w-[360px]"/>
                 </div>
 
-                <Skeleton className="h-12 w-[310px]" />
+                <Skeleton className="h-12 w-[310px]"/>
             </div>
 
             <div className="mb-8 flex justify-end gap-3">
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[220px]" />
-                <Skeleton className="h-12 w-[220px]" />
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[220px]"/>
+                <Skeleton className="h-12 w-[220px]"/>
             </div>
 
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-                <Skeleton className="h-6 w-[150px]" />
+                <Skeleton className="h-6 w-[150px]"/>
 
                 <div className="flex items-center gap-3">
-                    <Skeleton className="h-11 w-[310px]" />
-                    <Skeleton className="h-11 w-[120px]" />
+                    <Skeleton className="h-11 w-[310px]"/>
+                    <Skeleton className="h-11 w-[120px]"/>
                 </div>
             </div>
 
-            <MessagesTableSkeleton />
+            <MessagesTableSkeleton/>
 
             <div className="flex items-center justify-between border-t border-slate-100 px-6 py-5">
-                <Skeleton className="h-4 w-[230px]" />
-                <Skeleton className="h-10 w-10 rounded-xl" />
-                <Skeleton className="h-11 w-[130px]" />
+                <Skeleton className="h-4 w-[230px]"/>
+                <Skeleton className="h-10 w-10 rounded-xl"/>
+                <Skeleton className="h-11 w-[130px]"/>
             </div>
         </>
     );
@@ -704,45 +516,36 @@ function MessagesSkeleton() {
 function MessagesTableSkeleton() {
     return (
         <div className="overflow-hidden">
-            <div className="grid grid-cols-[1.35fr_1fr_1.55fr_1.35fr_1.35fr_1fr_0.7fr_48px] border-b border-slate-100 bg-slate-50 px-6 py-3">
-                {Array.from({ length: 8 }).map((_, index) => (
-                    <Skeleton key={index} className="h-3 w-[70%]" />
+            <div
+                className="grid grid-cols-[1.35fr_1fr_1.55fr_1.35fr_1.35fr_1fr_0.7fr_48px] border-b border-slate-100 bg-slate-50 px-6 py-3">
+                {Array.from({length: 8}).map((_, index) => (
+                    <Skeleton key={index} className="h-3 w-[70%]"/>
                 ))}
             </div>
 
-            {Array.from({ length: 8 }).map((_, rowIndex) => (
+            {Array.from({length: 8}).map((_, rowIndex) => (
                 <div
                     key={rowIndex}
                     className="grid grid-cols-[1.35fr_1fr_1.55fr_1.35fr_1.35fr_1fr_0.7fr_48px] items-center border-b border-slate-100 px-6 py-4"
                 >
                     <div className="flex items-center gap-3">
-                        <Skeleton className="h-9 w-9 rounded-full" />
-                        <Skeleton className="h-4 w-[90px]" />
+                        <Skeleton className="h-9 w-9 rounded-full"/>
+                        <Skeleton className="h-4 w-[90px]"/>
                     </div>
 
-                    <Skeleton className="h-4 w-[105px]" />
-                    <Skeleton className="h-4 w-[170px]" />
-                    <Skeleton className="h-4 w-[100px]" />
-                    <Skeleton className="h-4 w-[120px]" />
-                    <Skeleton className="h-6 w-[86px]" />
-                    <Skeleton className="h-6 w-[42px]" />
+                    <Skeleton className="h-4 w-[105px]"/>
+                    <Skeleton className="h-4 w-[170px]"/>
+                    <Skeleton className="h-4 w-[100px]"/>
+                    <Skeleton className="h-4 w-[120px]"/>
+                    <Skeleton className="h-6 w-[86px]"/>
+                    <Skeleton className="h-6 w-[42px]"/>
 
                     <div className="flex justify-end">
-                        <Skeleton className="h-5 w-5 rounded-full" />
+                        <Skeleton className="h-5 w-5 rounded-full"/>
                     </div>
                 </div>
             ))}
         </div>
     );
 }
-function getYesterdayDateString() {
-    const date = new Date();
 
-    date.setDate(date.getDate() - 1);
-
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-}

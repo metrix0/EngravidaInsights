@@ -384,19 +384,6 @@ function buildObjections(analyses: any[]) {
         .slice(0, 5);
 }
 
-type OutcomeEvent = {
-    type: string;
-};
-
-function countWithOutcomeEvent(analyses: any[], eventType: string) {
-    return analyses.filter((item) => {
-        const events: OutcomeEvent[] = Array.isArray(item.outcome_events)
-            ? item.outcome_events
-            : [];
-
-        return events.some((event: OutcomeEvent) => event.type === eventType);
-    }).length;
-}
 
 function percentage(value: number, total: number): number {
     if (total === 0) return 0;
