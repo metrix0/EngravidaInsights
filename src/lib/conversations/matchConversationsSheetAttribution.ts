@@ -298,7 +298,7 @@ function buildSheetCandidates(rows: SheetRow[]): SheetCandidate[] {
         );
 
         const origin = emptyToNull(
-            getFirstColumnValue(row, ["Origem", "Origin", "Fonte"])
+            getFirstColumnValue(row, ["Origem", "Origin", "Fonte", "Origem do contato"])
         );
 
         if (!tunnel && !origin) continue;

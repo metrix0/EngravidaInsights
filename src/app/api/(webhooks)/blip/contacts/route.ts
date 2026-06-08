@@ -243,9 +243,23 @@ async function createClient(parsedContact: ParsedBlipContact) {
             updated_at: now,
         });
 
-    if (error) throw error;
-}
+    if (!error) return;
 
+    if (error.code !== "23505" || !parsedContact.phone) {
+        throw error;
+    }
+
+    const { data: existingClient, error: findError } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("phone", parsedContact.phone)
+        .maybeSingle();
+
+    if (findError) throw findError;
+    if (!existingClient?.id) throw error;
+
+    await updateClient(existingClient.id, parsedContact);
+}
 function normalizeExternalContactId(value: string | null): string | null {
     if (!value) return null;
 
